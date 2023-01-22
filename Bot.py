@@ -4,6 +4,7 @@ from Binance.Data import Binance_Live as live
 from Binance.Dao import Drivers_MongoDB as DAO_MB
 from Binance.Dao import Drivers_SQlite as DAO_SQL
 
+#test Branche
 #X = Histo.Binance_Histo(['ETHBUSD'], ['15m'], Frequence= 'M')
 
 #X.get_ListeFichier()
