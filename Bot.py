@@ -1,7 +1,8 @@
-from Data import Binance_Histo as Histo
-from Data import Binance_Live as live
-from Dao import Drivers_MongoDB as DAO_MB
-from Dao import Drivers_SQlite as DAO_SQL
+
+from Binance.Data import Binance_Histo as Histo
+from Binance.Data import Binance_Live as live
+from Binance.Dao import Drivers_MongoDB as DAO_MB
+from Binance.Dao import Drivers_SQlite as DAO_SQL
 
 #X = Histo.Binance_Histo(['ETHBUSD'], ['15m'], Frequence= 'M')
 
