@@ -2,10 +2,11 @@ import pandas as pd
 import numpy as np
 import datetime
 
-def calculate_trix(L_DataFrame, n=15):
+def Calculer_TRIX(L_Series, n=15):
     """
     Calcule l'indicateur TRIX pour un dataframe de données de cours.
     """
+    L_DataFrame = L_Series.to_frame()
     # Calcul de la moyenne mobile exponentielle sur n périodes
     ema1 = L_DataFrame.ewm(span=n, adjust=False).mean()
     # Calcul de la moyenne mobile exponentielle sur n périodes de la première moyenne mobile exponentielle
@@ -17,14 +18,16 @@ def calculate_trix(L_DataFrame, n=15):
     return trix
 
 
-def Calculer_SMA(L_DataFrame,L_indice):
+def Calculer_SMA(L_Series,L_indice):
     # Calculer la SMA à 20 périodes sur la colonne "Close"
+    L_DataFrame = L_Series.to_frame()    
     L_SMA = L_DataFrame.rolling(window=L_indice).mean()
     return L_SMA
 
-def Calculer_RSI(L_DataFrame, n=14, k=3, d=3):
+def Calculer_RSI(L_Series, n=14, k=3, d=3):
     # Calculer la différence entre le cours de clôture et le cours de clôture précédent
-    L_Delta = L_DataFrame.diff()
+    L_DataFrame = L_Series.to_frame()
+    L_Delta = L_DataFrame['Close'].diff()
     # Initialiser les séries L_Gain et perte avec des valeurs nulle
     L_Gain = pd.Series(0, L_Delta.index)
     L_Pertes = pd.Series(0, L_Delta.index)
@@ -40,9 +43,16 @@ def Calculer_RSI(L_DataFrame, n=14, k=3, d=3):
     L_RSI = 100 - (100 / (1 + rs))
     return L_RSI
 
-def Calculer_RSI_Stochastique(L_DataFrame, n=14, k=3, d=3):
+def Calculer_Change_Percent(L_DataFrame):
      # Calculer la différence entre le cours de clôture et le cours de clôture précédent
-    L_Delta = L_DataFrame.diff()
+    L_Change_Percent = (L_DataFrame['Close'] - L_DataFrame['Open']) / L_DataFrame['Open'] * 100
+    return L_Change_Percent
+
+
+def Calculer_RSI_Stochastique(L_Series, n=14, k=3, d=3):
+     # Calculer la différence entre le cours de clôture et le cours de clôture précédent
+    L_DataFrame = L_Series.to_frame()
+    L_Delta = L_DataFrame['Close'].diff()
     # Initialiser les séries L_Gain et perte avec des valeurs nulle
     L_Gain = pd.Series(0, L_Delta.index)
     L_Pertes = pd.Series(0, L_Delta.index)
