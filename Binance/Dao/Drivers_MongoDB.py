@@ -30,7 +30,6 @@ class Drivers_MongoDB:
             # chargement fichier
             df = pd.read_csv(nomFichier , sep =',' )
             df = pd.DataFrame(df.values, columns=self.NomColumns) 
-
             # Transformation avant Import en MongoDB
             L = list()
             for i in df.index:
