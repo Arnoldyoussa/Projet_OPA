@@ -1,6 +1,6 @@
-from binance import spot
+from binance import Client
 
-class Binance_Live(spot.Spot):
+class Binance_Live():
     """
         Class Binance_Live : 
             Rôle : Hérite de tous les propriétés de l'API Binance
