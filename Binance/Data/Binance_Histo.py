@@ -63,7 +63,8 @@ class Binance_Histo:
         """
             Retourne la liste des fichiers Historiques à télécharger en Local.
         """
-
+        self.L_Fichier = list()
+        
         # Identification de la liste des Dates de Fichiers
         L_Date = list()
         DEB = self.DateDebut
