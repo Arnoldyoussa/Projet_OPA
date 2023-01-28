@@ -15,11 +15,15 @@ class Drivers_MongoDB:
 
     NomColumns = ['Open_time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close_time', 'Quote_asset_volume', 'Nb_of_trades', 'Taker_buy_base_asset_volume', 'Taker_buy_quote_asset_volume', 'ignore']
 
-    def __init__(self, ListeFichier : list, Host : str = 'localhost', Port = 27017 , NomDB : str = 'OPA') :
+    def __init__(self, ListeFichier : list = [], Host : str = 'localhost', Port = 27017 , NomDB : str = 'OPA') :
         self.L_Fichier = ListeFichier
         self.ClientMongo = MongoClient(Host, Port)
         self.DBMongo = self.ClientMongo[NomDB]
-        
+    
+    def DeleteCollection(self, Collections : list):
+        for coll in Collections:
+            self.DBMongo.drop_collection(coll)
+
 
     def ChargeFichiers(self):
         for nomFichier in self.L_Fichier:
@@ -38,7 +42,7 @@ class Drivers_MongoDB:
 
             # Création Collection Mongo
             if nomFichier not in self.get_ListeFichier(Symbol) :
-                Document = {'_id': nomFichier , 'Intervalle' : Intervalle, 'Detail' : L }
+                Document = {'_id': nomFichier ,'Symbol' : Symbol, 'Intervalle' : Intervalle, 'Detail' : L }
                 collection.insert_one(Document)
 
     def get_AllCollection(self):
