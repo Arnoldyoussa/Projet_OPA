@@ -16,6 +16,13 @@ def calculate_trix(L_DataFrame, n=15):
     trix = ema3.diff(n)
     return trix
 
+def Calculer_Change_Percent(L_DataFrame):
+    
+    df = pd.DataFrame(L_DataFrame)
+    # Calcul la différence de changement en %
+    df['Before'] = df.shift(1)
+    L_Change_Percent = ( df[df.columns[0]] - df[df.columns[1]]) / df[df.columns[0]] * 100
+    return L_Change_Percent
 
 def Calculer_SMA(L_DataFrame,L_indice):
     # Calculer la SMA à 20 périodes sur la colonne "Close"
