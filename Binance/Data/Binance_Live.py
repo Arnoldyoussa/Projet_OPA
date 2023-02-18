@@ -1,15 +1,9 @@
-from binance import Client
+from binance.client import Client
 
-class Binance_Live():
-    """
-        Class Binance_Live : 
-            Rôle : Hérite de tous les propriétés de l'API Binance
+class Binance_Live:
+    def __init__(self, api_key, api_secret):
+        self.client = Client(api_key, api_secret)
 
-            Paramétres : 
-                ...
-                 
-            Méthodes : 
-                       
-    """
-    def __init__(self, api_key=None, api_secret=None, **kwargs) :
-        super().__init__( api_key, api_secret, **kwargs )
+    def exchange_info(self,symbol):
+        a=self.client.get_symbol_info(symbol)
+        return(a)
