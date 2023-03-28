@@ -1,0 +1,8 @@
+jupyter==1.0.0
+requests
+binance-connector
+pandas
+pymongo
+ta
+matplotlib
+scikit-learn
