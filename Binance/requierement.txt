@@ -1,4 +1,4 @@
-jupyter==1.0.0
+jupyter
 requests
 binance-connector
 pandas
@@ -6,3 +6,4 @@ pymongo
 ta
 matplotlib
 scikit-learn
+plotly

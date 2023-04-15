@@ -29,7 +29,7 @@ class Binance_Histo:
     Base_Monthly = 'monthly/'
     Base_Daily = 'daily/'
     
-    def __init__(self, Liste_Symbols : list, Liste_Intervals : list , DateDebut : str = None, DateFin : str = None, ProfondeurJr = 30, Frequence = 'Q') :
+    def __init__(self, Liste_Symbols : list, Liste_Intervals : list , DateDebut : str = None, DateFin : str = None, ProfondeurJr = 30, Frequence = 'M') :
         """
             Initialisation de la classe Binance_Histo, avec les valeurs par défaut : 
             - DateDebut = Date du Jour (Format Date YYYY-MM-JJ) - ProfondeurJr
@@ -58,6 +58,9 @@ class Binance_Histo:
             self.DateFin = date.today()
         else : 
             self.DateFin = date.fromisoformat(DateFin)
+
+        # Initialisation des fichiers à charger
+        self.get_ListeFichier()
     
     def get_ListeFichier(self):
         """
