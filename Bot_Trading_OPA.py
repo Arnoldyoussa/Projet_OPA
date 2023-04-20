@@ -31,11 +31,13 @@ def Reset_DB_All():
     """
     try:
         # Step 1 : suppression de la base SQLlite
+        print('Step 1 : suppression de la base SQLlite')
         DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
         DB_SQL.Re_InitDB(PathCreateTable)
         DB_SQL.CloseConnection()
 
         # Step 2 : suppression des Collections Mongo
+        print('Step 2 : suppression des Collections  dans la Base Mongo')
         DB_MB = DAO_MB.Drivers_MongoDB(Host = Host_DBMongo, Port = Port_DBMongo, NomDB = Nom_DBMongo)
         DB_MB.DeleteCollection(DB_MB.get_AllCollection())
 
@@ -51,6 +53,7 @@ def Reset_DB_Live():
         DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
         
         # --
+        print('Suppression des Tables SQL Live')
         DB_SQL.Execute("""DELETE FROM FAIT_PREDICTION;""")
         DB_SQL.Execute("""DELETE FROM FAIT_SIT_COURS;""")
 
@@ -80,6 +83,7 @@ def Load_DB_Mongo(ListePaire : list, Periode_Debut, Periode_Fin):
         # Téléchargement des Fichiers à charger
         DataHisto = Histo.Binance_Histo(L_Symbol, ['1h'], DateDebut = Periode_Debut, DateFin = Periode_Fin)
         DataHisto.TelechargeFichier()
+        print('Téléchargement des Fichiers à charger')
 
         #Chargement Base Mongo
         L = list()
@@ -89,6 +93,7 @@ def Load_DB_Mongo(ListePaire : list, Periode_Debut, Periode_Fin):
             
         DB_MB = DAO_MB.Drivers_MongoDB(L,Host = Host_DBMongo, Port = Port_DBMongo, NomDB = Nom_DBMongo)
         DB_MB.ChargeFichiers()
+        print('Chargement Base MongoDB')
 
         #Suppression fichiers Chargés
         DataHisto.SupprimeFichier()
@@ -110,6 +115,8 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
         DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
         DB_MB = DAO_MB.Drivers_MongoDB(Host = Host_DBMongo, Port = Port_DBMongo, NomDB = Nom_DBMongo)
         DataLive = live.Binance_Live()
+
+        print('Connexion aux DataBases')
 
         # Step 1 : Récupération des info Temps / Symbols / Cours
         
@@ -168,6 +175,7 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
         DimTemps['ANNEE'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('YYYY'))
         
         DB_SQL.Alim_DimTemps(DimTemps)
+        print('Chargement Dimension Temps')
 
         # --
         DimSymbol = pd.DataFrame(L_SYMBOLS)
@@ -175,6 +183,7 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
         DimSymbol = DimSymbol.merge(df, on = 'NOM_SYMBOL' )
         
         DB_SQL.Alim_DimSymbol(DimSymbol)
+        print('Chargement Dimension Symbol')
 
         # --
         FaiCoursHisto = pd.DataFrame(L_COURS)
@@ -200,13 +209,15 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
 
         FaiCoursHisto = FaiCoursHisto[['ID_TEMPS',  'ID_SYMBOL','VALEUR_COURS', 'IND_SMA_20', 'IND_SMA_30', 'IND_QUOTEVOLUME', 'IND_CHANGEPERCENT', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX']]
         
-        DB_SQL.Alim_FaitSituation_Histo(FaiCoursHisto)        
+        DB_SQL.Alim_FaitSituation_Histo(FaiCoursHisto)  
+        print('Chargement Fait Cours Historique')      
 
         # Step 3 : Apprentissage Décision Achat / Vente Méthode 1
         
         # --
         df_temp= Get_DataPaire(ListePaire, Periode_Debut, Periode_Fin, 'M1')
         df_temp = util_TA.boucle_trading(df_temp[['ID_SIT_CRS','VALEUR_COURS', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX']])
+        print('Lancement Fonction Boucle Trading M1')      
         
         # --
         Fait_Dec_A = pd.DataFrame(df_temp['ID_SIT_CRS'])
@@ -219,6 +230,8 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
         Fait_Dec_V['ID_MLCLAS'] = 2
         Fait_Dec_V['DEC_VENTE'] = df_temp['DEC_VENTE']
         DB_SQL.Alim_FaitDecision_Histo(Fait_Dec_V)
+
+        print('Chargement Desion Achat Vente M1')
 
         # Step 4 : Apprentissage Décision Achat / Vente Méthode 2
         sql_cript = """
@@ -251,6 +264,7 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
             SELECT ID_SIT_CRS_HIS, ID_MLCLAS, IND_DEC  from FAIT_DEC_ML_CLASS
         """
         DB_SQL.Execute(sql_cript)
+        print('Chargement Desion Achat Vente M2')
 
         # Fin Connection
         DB_SQL.CloseConnection()
@@ -296,6 +310,7 @@ def Load_DB_SQL_Live(ListePaire : list):
             DimTemps['ANNEE'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('YYYY'))
             
             DB_SQL.Alim_DimTemps(DimTemps)
+            print('Chargement Dimension Temps')
             
             # --
             Info_symbol = DataLive.exchange_info(symbol)
@@ -306,6 +321,8 @@ def Load_DB_SQL_Live(ListePaire : list):
                 }
             DimSymbol = pd.DataFrame([i])
             DB_SQL.Alim_DimSymbol(DimSymbol)
+
+            print('Chargement Dimension Symbol')
 
             # --
             L = list()
@@ -333,9 +350,10 @@ def Load_DB_SQL_Live(ListePaire : list):
             FaitCours = FaitCours[['ID_TEMPS',  'ID_SYMBOL','VALEUR_COURS', 'IND_SMA_20', 'IND_SMA_30', 'IND_QUOTEVOLUME', 'IND_CHANGEPERCENT', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX']]
             
             DB_SQL.Alim_FaitSituation(FaitCours) 
+            print('Chargement Fait Cours')
 
-            # -- 
-            DB_SQL.CloseConnection()
+        # -- 
+        DB_SQL.CloseConnection()
 
     except:
         return "KO"
@@ -371,6 +389,7 @@ def Load_DB_SQLPrediction(Paire, MethodeCalcul):
             resultat = DB_SQL.Select(sql_train, (-1,))
             df_train = util.Prediction_SQL_To_DF(resultat)
             ML_Class = ML.ML_CLassification(df_train)
+            print('Entrainement sur les 6 Derniers Mois')
 
             # Step 2 : Phase Prediction
             
@@ -390,6 +409,7 @@ def Load_DB_SQLPrediction(Paire, MethodeCalcul):
             resultat = DB_SQL.Select(sql_Test, (-1,))
             df_test = util.Prediction_SQL_To_DF(resultat)
             df_test = ML_Class.predict(df_test)
+            print('Prediction sur les données Lives')
 
             # Stockage resultat Prediction
             # --
@@ -403,6 +423,8 @@ def Load_DB_SQLPrediction(Paire, MethodeCalcul):
             Fait_Dec_V['ID_MLCLAS'] = 4
             Fait_Dec_V['DEC_VENTE'] = df_test['DEC_VENTE']
             DB_SQL.Alim_FaitPrediction(Fait_Dec_V)
+
+            print('Chargement Prédiction Achat Vente M2')
 
         elif MethodeCalcul == "M1":
             print('Methode 1 :)')
@@ -480,6 +502,7 @@ def Get_DataPaire(ListePaire :list, Periode_Debut, Periode_Fin, MethodeCalcul) :
         # -- 
         DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
         res = DB_SQL.Select(script_sql) 
+        print('Récupération des Données des Paires [{}] sur la période du {} au {}'.format(MesSymbols, Periode_Debut,Periode_Fin ) )
 
         # -- 
         L = []
@@ -544,7 +567,6 @@ def	Get_Graphe_SimulationGain(Data):
     Cette fonction retourne un graphe de simulation de Gain
     """
     try:
-
         df_temps = Data
         df_temps['timestamp_sec'] = df_temps['ID_TEMPS'] * 0.001
         df_temps['datetime'] = pd.to_datetime(df_temps['ID_TEMPS'], unit='ms')
@@ -571,6 +593,7 @@ def	Get_Live_InfoPaire(Paire, Interval = '1h', Periode_Debut = datetime.date.tod
         API_Live = live.Binance_Live()
         X= API_Live.klines(Paire, Interval, startTime = util.Convertir_toTimestamp(Periode_Debut))
         df = pd.DataFrame(X, columns= columns)
+        print('Récuparation de la Paire {} à partir du {}'.format(Paire, Periode_Debut))
 
         df['INTERVALLE'] = Interval
         df['NOM_SYMBOL'] = Paire
