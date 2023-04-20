@@ -4,9 +4,11 @@ from Binance.Dao import Drivers_MongoDB as DAO_MB
 from Binance.Dao import Drivers_SQlite as DAO_SQL
 from Binance.Utils import Utilitaire as util
 from Binance.Utils import Technical_Analyst as util_TA
+from Binance.Utils import ML_Classification as ML
 
 import pandas as pd
 import sys
+import datetime
 
 # Paramétrage Générique
 PathDatabase = '/home/arnold/ENV_VIRTUEL/ATU_FORMATION/REP_DEV/Projet_OPA/DataBase/SQLite/test.db'
@@ -15,6 +17,12 @@ PathCreateTable = 'Binance/Dao/Create_DBSQLITE_OPA.sql'
 Host_DBMongo = 'localhost' 
 Port_DBMongo = 27017
 Nom_DBMongo  = 'OPA'
+
+"""
+########################################################################
+#############Bloc 1 : Reinitialisation DataBase ########################
+########################################################################
+"""
 
 # -->
 def Reset_DB_All():
@@ -37,6 +45,30 @@ def Reset_DB_All():
     return "OK"
 
 # -->
+def Reset_DB_Live():
+
+    try:
+        DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
+        
+        # --
+        DB_SQL.Execute("""DELETE FROM FAIT_PREDICTION;""")
+        DB_SQL.Execute("""DELETE FROM FAIT_SIT_COURS;""")
+
+        # -- 
+        DB_SQL.CloseConnection()
+    
+    except : 
+        return "KO"
+    
+    return "OK"
+
+"""
+########################################################################
+#############Bloc 2 :  Chargement Database #############################
+########################################################################
+"""
+
+# --> Base Mongo
 def Load_DB_Mongo(ListePaire : list, Periode_Debut, Periode_Fin):
     """
         Cette Fonction charge la base Mongo à partir des Fichiers Historiques
@@ -66,7 +98,7 @@ def Load_DB_Mongo(ListePaire : list, Periode_Debut, Periode_Fin):
         
     return "OK"
 
-# -->
+# --> Base SQL Histo
 def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
     """
         Cette Fonction charge la base SQLite à partir de la base Mongo
@@ -228,6 +260,165 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
     
     return "OK"
 
+# --> Base SQL Live
+def Load_DB_SQL_Live(ListePaire : list):
+    """
+    Cette fonction charge en temps réel les données Paires présentes dans la base Historique
+    """
+    try:
+        #Connexion
+        DataLive = live.Binance_Live()
+        DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
+        L_Symbol = ListePaire
+
+        # Step 1 : Pour chaque Paire, on alimente la base SQL Live
+        
+        # --
+        today = datetime.datetime.now()
+        DebutMois = str(today.year)+ "-" +str(today.month).rjust(2,'0') + "-01"
+
+        # --
+        for symbol in L_Symbol:
+            # --
+            df = Get_Live_InfoPaire(symbol, Periode_Debut = DebutMois )
+
+            # --
+            DimTemps = pd.DataFrame(df)
+            DimTemps['ID_TEMPS'] = DimTemps['CloseTime']
+            DimTemps = pd.DataFrame(DimTemps['ID_TEMPS'])
+            
+            DimTemps['DATE_TEMPS'] =  DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp)
+            DimTemps['SECONDES'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('ss'))
+            DimTemps['MINUTES'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('mm'))
+            DimTemps['HEURE'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('HH'))
+            DimTemps['JOUR'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('DD'))
+            DimTemps['MOIS'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('MM'))
+            DimTemps['ANNEE'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('YYYY'))
+            
+            DB_SQL.Alim_DimTemps(DimTemps)
+            
+            # --
+            Info_symbol = DataLive.exchange_info(symbol)
+            i = {'NOM_SYMBOL' : Info_symbol['symbols'][0]['symbol'],
+                 "INTERVALLE" : df['INTERVALLE'].unique()[0],
+                 'BaseAsset' : Info_symbol['symbols'][0]['baseAsset'],
+                 'QuoteAsset' : Info_symbol['symbols'][0]['quoteAsset']
+                }
+            DimSymbol = pd.DataFrame([i])
+            DB_SQL.Alim_DimSymbol(DimSymbol)
+
+            # --
+            L = list()
+            res = DB_SQL.Select('select ID_SYMBOL,NOM_SYMBOL,INTERVALLE  from DIM_SYMBOL;')
+            for i in res:
+                (a,b,c) = i
+                L.append({'ID_SYMBOL' : a, 'NOM_SYMBOL' : b, 'INTERVALLE' : c})
+            DimSymbol = pd.DataFrame(L)
+
+            FaitCours = pd.DataFrame(df)
+            FaitCours = FaitCours.merge(DimSymbol, how = 'inner')
+
+            FaitCours['ID_TEMPS'] = FaitCours['CloseTime'].astype(int)
+            FaitCours['VALEUR_COURS'] = FaitCours['ClosePrice'].astype(float)
+            FaitCours['IND_QUOTEVOLUME'] = FaitCours['QuoteAssetVolume'].astype(float)
+
+            FaitCours['IND_SMA_20'] = util_TA.Calculer_SMA(FaitCours['VALEUR_COURS'], 20)
+            FaitCours['IND_SMA_30'] = util_TA.Calculer_SMA(FaitCours['VALEUR_COURS'], 30)
+
+            FaitCours['IND_CHANGEPERCENT'] = util_TA.Calculer_Change_Percent(FaitCours['VALEUR_COURS'])
+            FaitCours['IND_STOCH_RSI'] = util_TA.Calculer_RSI_Stochastique(FaitCours['VALEUR_COURS'])
+            FaitCours['IND_RSI'] =  util_TA.Calculer_RSI(FaitCours['VALEUR_COURS'])
+            FaitCours['IND_TRIX'] = util_TA.calculate_trix(FaitCours['VALEUR_COURS'])
+            
+            FaitCours = FaitCours[['ID_TEMPS',  'ID_SYMBOL','VALEUR_COURS', 'IND_SMA_20', 'IND_SMA_30', 'IND_QUOTEVOLUME', 'IND_CHANGEPERCENT', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX']]
+            
+            DB_SQL.Alim_FaitSituation(FaitCours) 
+
+            # -- 
+            DB_SQL.CloseConnection()
+
+    except:
+        return "KO"
+    
+    return "OK"
+
+# --> Base SQL Live Prediction
+def Load_DB_SQLPrediction(Paire, MethodeCalcul):
+
+    try:
+        DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
+
+        if MethodeCalcul == "M2":
+
+            # Step 1 : Phase Entraitement sur les 6 derniers mois Histo
+            sql_train = """
+                select A.ID_SIT_CRS_HIS, 
+                    IND_STOCH_RSI,
+                    IND_RSI,
+                    IND_TRIX,
+                    B_A.IND_DEC, 
+                    B_V.IND_DEC
+                from FAIT_SIT_COURS_HIST A
+                inner join FAIT_DEC_ML_CLASS B_A ON (B_A.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS and B_A.ID_MLCLAS = 3)
+                inner join FAIT_DEC_ML_CLASS B_V ON (B_V.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS and B_V.ID_MLCLAS = 4)
+                inner join DIM_TEMPS C ON (C.ID_TEMPS = A.ID_TEMPS)
+                inner join DIM_SYMBOL D ON (D.ID_SYMBOL = A.ID_SYMBOL)
+                where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null and C.ANNEE||C.MOIS >= DATE(current_date,'-6 months')
+                AND NOM_SYMBOL = '{NomSymbol}'
+                limit ?;
+            """.format(NomSymbol = Paire)
+
+            resultat = DB_SQL.Select(sql_train, (-1,))
+            df_train = util.Prediction_SQL_To_DF(resultat)
+            ML_Class = ML.ML_CLassification(df_train)
+
+            # Step 2 : Phase Prediction
+            
+            sql_Test = """select ID_SIT_CRS, 
+                        IND_STOCH_RSI, 
+                        IND_RSI, 
+                        IND_TRIX,
+                        NULL, 
+                        NULL
+                        from FAIT_SIT_COURS A
+                        inner join DIM_SYMBOL B ON (B.ID_SYMBOL = A.ID_SYMBOL)
+                        where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null
+                        AND NOM_SYMBOL = '{NomSymbol}'
+                        limit ?; 
+                    """.format(NomSymbol = Paire)
+            
+            resultat = DB_SQL.Select(sql_Test, (-1,))
+            df_test = util.Prediction_SQL_To_DF(resultat)
+            df_test = ML_Class.predict(df_test)
+
+            # Stockage resultat Prediction
+            # --
+            Fait_Dec_A = pd.DataFrame(df_test['ID_SIT_CRS'])
+            Fait_Dec_A['ID_MLCLAS'] = 3
+            Fait_Dec_A['DEC_ACHAT'] = df_test['DEC_ACHAT']
+            DB_SQL.Alim_FaitPrediction(Fait_Dec_A)
+
+            # --
+            Fait_Dec_V = pd.DataFrame(df_test['ID_SIT_CRS'])
+            Fait_Dec_V['ID_MLCLAS'] = 4
+            Fait_Dec_V['DEC_VENTE'] = df_test['DEC_VENTE']
+            DB_SQL.Alim_FaitPrediction(Fait_Dec_V)
+
+        elif MethodeCalcul == "M1":
+            print('Methode 1 :)')
+
+        # -- 
+        DB_SQL.CloseConnection()
+
+    except : 
+        return "KO"
+    return "OK"
+
+"""
+########################################################################
+#############Bloc 3 : Extraction Data Base #############################
+########################################################################
+"""
 # -->
 def Get_DataPaire(ListePaire :list, Periode_Debut, Periode_Fin, MethodeCalcul) :
     """
@@ -316,6 +507,7 @@ def Get_DataPaire(ListePaire :list, Periode_Debut, Periode_Fin, MethodeCalcul) :
         DB_SQL.CloseConnection()
 
     except:
+        print("KO")
         return pd.DataFrame(columns=['ID_TEMPS', 'DATE_TEMPS', 'NOM_SYMBOL', 'VALEUR_COURS', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX','DEC_ACHAT', 'DEC_VENTE'])
     
     return df_resultat
@@ -325,16 +517,24 @@ def	Get_Graphe_Prediction_Achat_Vente(Data):
     """
     Cette fonction retourne un graphe de prediction Achat ou Vente.
     """
-    return util.visualiser_transactions(Data)
+    try:
+        Fig = util.visualiser_transactions(Data)
+    except:
+        print("KO")
+
+    return Fig
 
 # -->
 def Get_SimulationGain(Data, Symbol):
     """
     Cette fonction Effectue une simulation de Gain sur une période donnée
     """
+    try:
+        Data=Data[ (Data['DEC_ACHAT'] == 1) | (Data['DEC_VENTE'] == 1) ]
+        rapport = util_TA.Generation_Rapport_Backtest(Data, Symbol)
     
-    Data=Data[ (Data['DEC_ACHAT'] == 1) | (Data['DEC_VENTE'] == 1) ]
-    rapport = util_TA.Generation_Rapport_Backtest(Data, Symbol)
+    except:
+        print("KO")
 
     return ( rapport, Data)
 
@@ -343,25 +543,58 @@ def	Get_Graphe_SimulationGain(Data):
     """
     Cette fonction retourne un graphe de simulation de Gain
     """
-    df_temps = Data
-    df_temps['timestamp_sec'] = df_temps['ID_TEMPS'] * 0.001
-    df_temps['datetime'] = pd.to_datetime(df_temps['ID_TEMPS'], unit='ms')
-    df_temps.set_index('datetime', inplace=True)
+    try:
+
+        df_temps = Data
+        df_temps['timestamp_sec'] = df_temps['ID_TEMPS'] * 0.001
+        df_temps['datetime'] = pd.to_datetime(df_temps['ID_TEMPS'], unit='ms')
+        df_temps.set_index('datetime', inplace=True)
+    except :
+        print("KO")
 
     return util.affiche_graphe_score(df_temps)
 
+"""
+########################################################################
+#############Bloc 4 : Extraction Data Binance ##########################
+########################################################################
+"""
 # -->
-def	Get_Live_InfoPaire(Paire, Periode_Debut, Periode_Fin, Interval):
+def	Get_Live_InfoPaire(Paire, Interval = '1h', Periode_Debut = datetime.date.today().isoformat()):
     """
-    Cette fonction retourne les infos d'une Paire, ainsi que son graphe en Temps réel
+    Cette fonction retourne les infos d'une Paire sur une Période de 24h
     """
+
+    try:
+        columns = ['OpenTime', 'OpenPrice','HighPrice','LowPrice','ClosePrice','Volume','CloseTime','QuoteAssetVolume','NumberTrade','BuyAssetVol','BuyQuoteVol','Ignore' ]
+
+        API_Live = live.Binance_Live()
+        X= API_Live.klines(Paire, Interval, startTime = util.Convertir_toTimestamp(Periode_Debut))
+        df = pd.DataFrame(X, columns= columns)
+
+        df['INTERVALLE'] = Interval
+        df['NOM_SYMBOL'] = Paire
+        df['datetime'] = df['CloseTime'].apply(util.Convertir_Timestamp)
+
+        df.set_index('datetime', inplace=True)
+
+    except:
+        print("KO")
+        return pd.DataFrame([], columns=columns)
+    
+    return df
+
+# -->
+def Get_Graphe_LivePaire(Data):
+    """
+    Cette fonction retourne le graphe en Temps réel d'une Paire sur une Période de 24h
+    """
+    # A complétr :)
     return "KO"
 
+
 """"
-def Load_DB_SQL_Live(ListePaire, Periode_Debut, Periode_Fin):
-	return "KO"
-		
-		
+
 def	Get_Live_InfoPersonne(CLE_API):
 	return "KO"
 """
