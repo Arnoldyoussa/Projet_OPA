@@ -1,7 +1,13 @@
 import datetime
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
+import pandas as pd
 
+# --
+def Convertir_toTimestamp(DateIsoFormat):
+    return int(datetime.datetime.fromisoformat(DateIsoFormat).timestamp() * 1000)
+
+# --
 def Convertir_Timestamp(X, formatDate = None):
     myDate = datetime.datetime.fromtimestamp(float(X)/1000)
     
@@ -20,8 +26,16 @@ def Convertir_Timestamp(X, formatDate = None):
     else :
         return str(myDate.year) + "-" + str(myDate.month).rjust(2,'0') + "-" + str(myDate.day).rjust(2,'0') + " " + str(myDate.hour).rjust(2,'0') + ":" + str(myDate.minute).rjust(2,'0') + ":" + str(myDate.second).rjust(2,'0')
 
+# --
+def visualiser_graphe_Moustache(Data):
+    fig = go.Figure()
 
+    fig.add_trace(go.Box( y=Data['data']))
+    fig.update_layout(title='Graphe en Moustache', xaxis_title='Temps', yaxis_title='Valeur de la paire')
 
+    return fig
+
+# --
 def visualiser_transactions(L_Dataframe):
     fig = go.Figure()
     # Ajout de la courbe de la colonne 'valeur_cours'
@@ -37,6 +51,7 @@ def visualiser_transactions(L_Dataframe):
     
     return fig
 
+# --
 def affiche_graphe_score(dfTest):
     # Créer une nouvelle figure vide
     fig = go.Figure()
@@ -70,3 +85,19 @@ def affiche_graphe_score(dfTest):
                     barmode='overlay', legend=dict(x=0.7, y=1.1))
 
     return fig
+
+# --
+def Prediction_SQL_To_DF(ResultatSQL_Class) :
+    
+    L = list()
+    for i in ResultatSQL_Class:
+        (a, b, c, d, e, f) = i
+        L.append({'ID_SIT_CRS' : a,
+                 'IND_STOCH_RSI' : b, 
+                 'IND_RSI' : c, 
+                 'IND_TRIX' : d ,
+                 'DEC_ACHAT' :e ,
+                 'DEC_VENTE' : f
+                 })
+
+    return pd.DataFrame(L)
