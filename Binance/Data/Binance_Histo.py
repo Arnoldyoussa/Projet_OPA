@@ -59,8 +59,6 @@ class Binance_Histo:
         else : 
             self.DateFin = date.fromisoformat(DateFin)
 
-        # Initialisation des fichiers à charger
-        self.get_ListeFichier()
     
     def get_ListeFichier(self):
         """
@@ -101,6 +99,8 @@ class Binance_Histo:
         """
             Téléchargement des Fichiers en Local
         """
+        # Initialisation des fichiers à charger
+        self.get_ListeFichier()
 
         for Monfichier in self.L_Fichier:
             nomZip = Monfichier['Nom'].split('.')[0] + ' .zip'
