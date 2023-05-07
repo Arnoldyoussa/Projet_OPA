@@ -1,8 +1,11 @@
 # Importation des bibliothèques nécessaires
+import sys 
+sys.path.append("..")
+
 import os
 import requests
 import dash
-from ..Binance import Bot_Trading_OPA as Bot
+from Binance import Bot_Trading_OPA as Bot
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 from dash.dependencies import Input, Output

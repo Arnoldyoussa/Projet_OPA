@@ -1,10 +1,10 @@
-from Data import Binance_Histo as Histo
-from Data import Binance_Live as live
-from Dao import Drivers_MongoDB as DAO_MB
-from Dao import Drivers_SQlite as DAO_SQL
-from Utils import Utilitaire as util
-from Utils import Technical_Analyst as util_TA
-from Utils import ML_Classification as ML
+from Binance.Data import Binance_Histo as Histo
+from Binance.Data import Binance_Live as live
+from Binance.Dao import Drivers_MongoDB as DAO_MB
+from Binance.Dao import Drivers_SQlite as DAO_SQL
+from Binance.Utils import Utilitaire as util
+from Binance.Utils import Technical_Analyst as util_TA
+from Binance.Utils import ML_Classification as ML
 
 import pandas as pd
 import sys
