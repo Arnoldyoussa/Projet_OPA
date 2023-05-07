@@ -49,61 +49,97 @@ def Calculer_RSI_Stochastique(L_DataFrame, n=14, k=3, d=3):
     stoch_rsi=ta.momentum.stochrsi(close=L_DataFrame, window=n, smooth1=k, smooth2=d)
     return stoch_rsi
 
-def buyCondition(row,previousRow):
+def buyCondition(row):
   if row['IND_TRIX'] > 0 and row['IND_STOCH_RSI'] < 0.8 :
     return True
   else:
     return False
 
 # -- Condition to SELL market --  
-def sellCondition(row,previousRow):
+def sellCondition(row):
   if row['IND_TRIX'] < 0 and row['IND_STOCH_RSI'] > 0.2 :
     return True
   else:
     return False
   
-def boucle_trading(L_Dataframe_Cours, initial_usdt = 1000, takerFee = 0.0007):
-    usdt = initial_usdt
-    coin = 0
-    L_Temps = L_Dataframe_Cours
-    L_Temps['DEC_ACHAT'] = 0
-    L_Temps['DEC_VENTE'] = 0
-    previousRow = L_Temps.iloc[0]
+def boucle_trading(L_Dataframe_Cours, initial_usdt = 100000, takerFee = 0.0007):
+                       
+            
+                               
+                            
+                            
+                                 
 
-    for index, row in L_Temps.iterrows():
-        if buyCondition(row, previousRow) and usdt > 0:
-            # Définition du prix d'achat
-            buyPrice = row['VALEUR_COURS']
-            # Calcul du nombre de coins achetés, avec prise en compte des frais
-            coin = usdt / buyPrice
-            fee = takerFee * coin
-            coin = coin - fee
-            usdt = 0
-            # Mise à jour de la colonne 'achat' avec la valeur 1
-            L_Temps.loc[index, 'DEC_ACHAT'] = 1
+    with open("output_trading_boucle.txt", "a") as file:
+                                                       
+                                         
+                                          
+                                                                                
+                                  
+                                 
+                             
+                    
+                                                                 
+                                               
 
-        elif sellCondition(row, previousRow) and coin > 0:
-            # Définition du prix d'achat de la vente
-            sellPrice = row['VALEUR_COURS']
-            usdt = coin * sellPrice
-            fee = takerFee * usdt
-            usdt = usdt - fee
-            coin = 0
-            # Mise à jour de la colonne 'vente' avec la valeur 1
-            L_Temps.loc[index, 'DEC_VENTE'] = 1
+        duplicated_rows = L_Dataframe_Cours.index.duplicated(keep='first')
+ 
+        unique_rows = ~duplicated_rows
+ 
+        L_Temps  = L_Dataframe_Cours[unique_rows]
+        usdt = initial_usdt
+        sellReady = False
+        buyReady = True
+        coin = 0
+        L_Temps.loc[:, 'DEC_ACHAT'] = 0
+        L_Temps.loc[:, 'DEC_VENTE'] = 0
+        # Identifier les lignes en double (gardez la première occurrence)
+        for index, row in L_Temps.iterrows():
 
-        previousRow = row
-    # Utilisation de la fonction generate_report_v4 pour mettre à jour les valeurs du wallet
-    # Filtrage des lignes du DataFrame pour ne garder que celles ayant une transaction d'achat ou de vente
-    #L_Dataframe_Filtrer_Transactions = L_Dataframe_Cours.query('DEC_ACHAT == 1 or DEC_VENTE == 1')
+                if buyCondition(row) and usdt > 0 and buyReady == True :
+                    print("Date : ",index," CONDITION ACHAT sellready = ", sellReady, " buyready=", buyReady, file=file)
+                    # Définition du prix d'achat
+                    buyPrice = row['VALEUR_COURS']
+                    # Calcul du nombre de coins achetés, avec prise en compte des frais
+                    coin = usdt / buyPrice
+                    fee = takerFee * coin
+                    coin = coin - fee
+                    usdt = 0
+                    # Mise à jour de la colonne 'achat' avec la valeur 1
+                    L_Temps.at[index, 'DEC_ACHAT'] = 1
+                    buyReady = False
+                    sellReady = True
+                    print("Achat mis a jour pour l'index", index, file=file)
+                    continue
+
+
+                if sellCondition(row) and coin > 0 and sellReady == True:
+                    print("Date : ",index," CONDITION VENTE sellready = ",sellReady," buyready=",buyReady, file=file)
+                    # Définition du prix d'achat de la vente
+                    sellPrice = row['VALEUR_COURS']
+                    usdt = coin * sellPrice
+                    fee = takerFee * usdt
+                    usdt = usdt - fee
+                    coin = 0
+                    # Mise à jour de la colonne 'vente' avec la valeur 1
+                    L_Temps.at[index, 'DEC_VENTE'] = 1
+                    buyReady = True
+                    sellReady = False
+                    print("Vente mise a jour pour l'index", index, file=file)
+        # Utilisation de la fonction generate_report_v4 pour mettre à jour les valeurs du wallet
+        # Filtrage des lignes du DataFrame pour ne garder que celles ayant une transaction d'achat ou de vente
+        #L_Dataframe_Filtrer_Transactions = L_Dataframe_Cours.query('DEC_ACHAT == 1 or DEC_VENTE == 1')
     
     return L_Temps
 
 def Generation_Rapport_Backtest(L_Dataframe_Filtrer_Transactions, L_Symbole, L_Capital_Depart = 1000, L_Frais_Transactions = 0.0007):
-    # Ajout d'une colonne 'wallet' et initialisation avec la valeur initiale du portefeuille
+
+     # Ajout d'une colonne 'wallet' et initialisation avec la valeur initiale du portefeuille   
     L_Dataframe_Filtrer_Transactions['wallet'] = L_Capital_Depart
+
     usdt = L_Capital_Depart
     coin = 0
+
 
     # Calcul des valeurs du wallet en fonction des transactions d'achat et de vente
     for index, row in L_Dataframe_Filtrer_Transactions.iterrows():
@@ -159,9 +195,6 @@ def Generation_Rapport_Backtest(L_Dataframe_Filtrer_Transactions, L_Symbole, L_C
             round(L_Dataframe_Filtrer_Transactions.loc[L_Dataframe_Filtrer_Transactions['tradeIs'] == 'Good', 'resultat%'].max(), 2))
     except Exception as e:
         print("Error:", e)
-        print("DataFrame head:", L_Dataframe_Filtrer_Transactions.head())
-        print("DataFrame columns:", L_Dataframe_Filtrer_Transactions.columns)
-
         totalGoodTrades = 0
         AveragePercentagePositivTrades = 0
         idbest = ''
@@ -185,26 +218,28 @@ def Generation_Rapport_Backtest(L_Dataframe_Filtrer_Transactions, L_Symbole, L_C
     winRateRatio = (totalGoodTrades/totalTrades) * 100
     #Extraction des raisons des trades
     #Initialisation de la variable de résultat sous forme de chaîne de caractères
-    L_Rapport = ""
-    #Ajout des informations de performance à la variable de résultat
-    L_Rapport += "Symbole de la L_Symbolee : " + L_Symbole + "\n"
-    L_Rapport += "Période : [" + str(L_Dataframe_Filtrer_Transactions.index[0]) + "] -> [" + str(L_Dataframe_Filtrer_Transactions.index[len(L_Dataframe_Filtrer_Transactions)-1]) + "]\n"
-    L_Rapport += "Solde initial : " + str(L_Capital_Depart) + " $\n\n"
-    L_Rapport += "Solde final : " + str(round(wallet, 2)) + " $\n"
-    L_Rapport += "Performance vs Dollar américain : " + str(round(algoPercentage, 2)) + " %\n"
-    L_Rapport += "Performance Buy and Hold : " + str(round(holdPercentage, 2)) + " %\n"
-    L_Rapport += "Performance vs Buy and Hold : " + str(round(vsHoldPercentage, 2)) + " %\n"
-    L_Rapport += "Meilleur trade : +" + str(bestTrade) + "%, le trade " + str(idbest) + "\n"
-    L_Rapport += "Pire trade : " + str(worstTrade) + "%, le trade " + str(idworst) + "\n"
-    #L_Rapport += "Pire drawdown : " + str(100*round(L_Dataframe_Filtrer_Transactions['drawBack'].min(), 2)) + "%\n"
-    #L_Rapport += "Frais totaux : " + str(round(L_Dataframe_Filtrer_Transactions['frais'].sum(), 2)) + " $\n\n"
-    L_Rapport += "Nombre total de trades : " + str(totalTrades) + "\n"
-    L_Rapport += "Nombre de trades positifs : " + str(totalGoodTrades) + "\n"
-    L_Rapport += "Nombre de trades négatifs : " + str(totalBadTrades) + "\n"
-    L_Rapport += "Taux de réussite des trades : " + str(round(winRateRatio, 2)) + "%\n"
-    L_Rapport += "Performance moyenne des trades : " + str(tradesPerformance) + "%\n"
-    L_Rapport += "Performance moyenne des trades positifs : " + str(AveragePercentagePositivTrades) + "%\n"
-    L_Rapport += "Performance moyenne des trades négatifs : " + str(AveragePercentageNegativTrades) + "%\n\n"
-    #Ajout du nombre de trades pour chaque raison à la variable de résultat
-
+    
+    L_Rapport_dict = {
+        "Symbole": L_Symbole,
+        "Période": "Du {} au {}".format(str(L_Dataframe_Filtrer_Transactions.index[0]), str(L_Dataframe_Filtrer_Transactions.index[len(L_Dataframe_Filtrer_Transactions)-1])),
+        "Solde_initial": "{}$".format(L_Capital_Depart),
+        "Solde_final": "{}$".format(round(wallet, 2)),
+        "Benefice ou Pertes": "{}$".format(round(wallet - L_Capital_Depart, 2)),
+        "Performance_vs_USD": "{}%".format(round(algoPercentage, 2)),
+        "Performance_Buy_and_Hold": "{}%".format(round(holdPercentage, 2)),
+        "Performance_vs_Buy_and_Hold": "{}%".format(round(vsHoldPercentage, 2)),
+        "Meilleur_trade": "{}%, le {}".format(str(bestTrade), str(idbest)),
+        "Pire_trade": "{}%, le {}".format(str(worstTrade), str(idworst)),
+        "Nombre_total_trades": totalTrades,
+        "Nombre_trades_positifs": totalGoodTrades,
+        "Nombre_trades_negatifs": totalBadTrades,
+        "Taux_réussite_trades": "{}%".format(round(winRateRatio, 2)),
+        "Performance_moyenne_trades": "{}%".format(tradesPerformance),
+        "Performance_moyenne_trades_positifs": "{}%".format(AveragePercentagePositivTrades),
+        "Performance_moyenne_trades_negatifs": "{}%".format(AveragePercentageNegativTrades)
+    }
+    
+    L_Rapport = pd.DataFrame(L_Rapport_dict, index=[0])
+    
     return L_Rapport
+ 

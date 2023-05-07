@@ -25,11 +25,11 @@ class ML_CLassification:
         return MLClass
     
     def predict(self,  Data):
-        DataTest = Data[['ID_SIT_CRS','IND_STOCH_RSI','IND_RSI','IND_TRIX']]
-        y_predA = self.ML_Class_Achat.predict(DataTest.drop(columns = ['ID_SIT_CRS']))
-        y_predV = self.ML_Class_Vente.predict(DataTest.drop(columns = ['ID_SIT_CRS']))
+        DataTest = Data[['ID_SIT_CRS', 'ID_TEMPS','IND_STOCH_RSI','IND_RSI','IND_TRIX']]
+        y_predA = self.ML_Class_Achat.predict(DataTest.drop(columns = ['ID_SIT_CRS','ID_TEMPS']))
+        y_predV = self.ML_Class_Vente.predict(DataTest.drop(columns = ['ID_SIT_CRS','ID_TEMPS']))
 
-        return pd.concat([Data['ID_SIT_CRS'], pd.DataFrame(y_predV, columns = ['DEC_VENTE']), pd.DataFrame(y_predA, columns = ['DEC_ACHAT'])], axis = 1)
+        return pd.concat([Data[['ID_SIT_CRS', 'ID_TEMPS']], pd.DataFrame(y_predV, columns = ['DEC_VENTE']), pd.DataFrame(y_predA, columns = ['DEC_ACHAT'])], axis = 1)
 
         
     

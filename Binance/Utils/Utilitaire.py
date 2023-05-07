@@ -2,6 +2,7 @@ import datetime
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 
 # --
 def Convertir_toTimestamp(DateIsoFormat):
@@ -56,33 +57,46 @@ def affiche_graphe_score(dfTest):
     # Créer une nouvelle figure vide
     fig = go.Figure()
 
-    # Calculer les rendements mensuels en pourcentage
-    monthly_returns = dfTest['wallet'].resample('M').last().pct_change() * 100
-
-    # Créer un graphique en barres avec vert pour les rendements positifs et rouge pour les rendements négatifs
-    fig = go.Figure(data=go.Bar(x=monthly_returns.index, y=monthly_returns.values, 
-                                marker_color=monthly_returns.apply(lambda x: 'green' if x >= 0 else 'red'), name="Notre Bot de Trading"),
-                    layout=go.Layout(title='Profits/Pertes de la stratégie par mois', 
-                                    xaxis=dict(title=''), 
-                                    yaxis=dict(title='Variation du portefeuille en %')))
+    # Calculer le pourcentage mensuel
+    monthly_wallet_change = dfTest.resample("M")["resultat%"].sum()
 
     # Échantillonner le prix ETH/USDT à la fin de chaque mois
-    
     monthly_prices = dfTest['VALEUR_COURS'].resample('M').last()
+    monthly_prices.iloc[0] = dfTest['VALEUR_COURS'].iloc[0]
+    bh_monthly_returns = monthly_prices.pct_change()
+    bh_monthly_returns.iloc[0] = np.NaN
+    bh_monthly_returns = bh_monthly_returns.fillna(0) * 100
 
-    # Calculer les rendements mensuels pour la stratégie Buy and Hold
-    bh_monthly_returns = monthly_prices.pct_change() * 100
+    # Créer le graphique à barres pour l'évolution du wallet
+    colors = ['green' if value >= 0 else 'red' for value in monthly_wallet_change]
+    bar_chart_wallet = go.Bar(
+        x=monthly_wallet_change.index, y=monthly_wallet_change.values,
+        marker=dict(color=colors), name="Évolution du wallet en %"
+    )
 
-    # Créer un graphique en barres avec vert pour les rendements positifs et rouge pour les rendements négatifs pour la stratégie Buy and Hold
-    bh_bar_colors = bh_monthly_returns.apply(lambda x: 'green' if x >= 0 else 'red')
-    fig.add_trace(go.Bar(x=bh_monthly_returns.index, y=bh_monthly_returns.values, 
-                        marker_color='black', opacity=0.2, name='Buy and Hold'))
+    # Créer le graphique à barres pour la stratégie buy and hold
+    colors = ['green' if value >= 0 else 'red' for value in bh_monthly_returns]
+    bar_chart_buy_and_hold = go.Bar(
+        x=bh_monthly_returns.index, y=bh_monthly_returns.values,
+        marker=dict(color=colors, opacity=0.5), name="Buy and hold",
+        visible='legendonly'
+    )
 
-    # Mettre à jour la mise en page pour afficher une légende
-    fig.update_layout(title='Profits/Pertes de la stratégie par mois', 
-                    xaxis=dict(title=''), 
-                    yaxis=dict(title='Variation du portefeuille en %'),
-                    barmode='overlay', legend=dict(x=0.7, y=1.1))
+    # Créer une mise en page pour le graphique
+    layout = go.Layout(
+        title="Évolution du wallet en % par rapport au temps (avec stratégie Buy and Hold)",
+        xaxis=dict(title="Mois", tickformat="%b %Y"),
+        yaxis=dict(title="Évolution du wallet en %"),
+        barmode="overlay"
+    )
+    x_labels = bh_monthly_returns.index.strftime('%B %Y')
+
+
+    # Mettre à jour l'axe des x avec les étiquettes générées
+    fig.update_xaxes(type='category', tickvals=bh_monthly_returns.index, ticktext=x_labels)
+    # Créer et afficher la figure
+    fig = go.Figure(data=[bar_chart_wallet, bar_chart_buy_and_hold], layout=layout)
+    # Décaler manuellement les étiquettes de l'axe des abscisses
 
     return fig
 
@@ -91,13 +105,42 @@ def Prediction_SQL_To_DF(ResultatSQL_Class) :
     
     L = list()
     for i in ResultatSQL_Class:
-        (a, b, c, d, e, f) = i
+        (a, b, c, d, e, f, g) = i
         L.append({'ID_SIT_CRS' : a,
                  'IND_STOCH_RSI' : b, 
                  'IND_RSI' : c, 
                  'IND_TRIX' : d ,
                  'DEC_ACHAT' :e ,
-                 'DEC_VENTE' : f
+                 'DEC_VENTE' : f,
+                 'ID_TEMPS' : g
                  })
 
     return pd.DataFrame(L)
+
+# --
+def supprimer_decisions_consecutives(df):
+
+    prev_achat = None
+    prev_vente = None
+    to_drop = []
+            # Ajout de la condition pour supprimer les lignes avec 0 dans les colonnes 'dec_achat' et 'dec_vente'
+    for index, row in df.iterrows():
+        if prev_achat == row['DEC_ACHAT'] and prev_vente == row['DEC_VENTE']:
+            to_drop.append(index)
+        else:
+            prev_achat = row['DEC_ACHAT']
+            prev_vente = row['DEC_VENTE']
+    return df.drop(to_drop).reset_index(drop=True)
+
+# --
+def remove_duplicates(Data):
+        # Identifier les lignes en double (gardez la première occurrence)
+    duplicated_rows = Data.index.duplicated(keep='first')
+
+        # Inverser les valeurs booléennes (True pour les lignes uniques, False pour les doublons)
+    unique_rows = ~duplicated_rows
+
+        # Filtrer les lignes uniques et créer un nouveau DataFrame sans doublons
+    Data_unique = Data[unique_rows]
+
+    return Data_unique
