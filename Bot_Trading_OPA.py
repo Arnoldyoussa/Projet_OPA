@@ -165,7 +165,7 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
         # Step 2 : Transformation des Données puis Stockage en Base
 
         # --
-        DimTemps = pd.DataFrame(L_TEMPS, columns = ['ID_TEMPS'] , dtype='int')
+        DimTemps = pd.DataFrame(L_TEMPS, columns = ['ID_TEMPS'] , dtype='int64')
         DimTemps['DATE_TEMPS'] =  DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp)
         DimTemps['SECONDES'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('ss'))
         DimTemps['MINUTES'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('mm'))
@@ -187,7 +187,7 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
 
         # --
         FaiCoursHisto = pd.DataFrame(L_COURS)
-        FaiCoursHisto['ID_TEMPS'] = FaiCoursHisto['ID_TEMPS'].astype(int)
+        FaiCoursHisto['ID_TEMPS'] = FaiCoursHisto['ID_TEMPS'].astype('int64')
         FaiCoursHisto['IND_QUOTEVOLUME'] = FaiCoursHisto['IND_QUOTEVOLUME'].astype(int)
 
 
@@ -240,8 +240,8 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
             A.ID_SIT_CRS_HIS,
             ID_MLCLAS,
             CASE 
-                WHEN ID_MLCLAS = 3 AND A.VALEUR_COURS <= MIN_JR AND MAX_JR >= (MOY_SEM + MAX_JR)/2   THEN 1 /* Décision ACHAT */
-                WHEN ID_MLCLAS = 4 AND A.VALEUR_COURS >= MAX_JR AND MAX_JR >= (MOY_SEM + MAX_JR)/2   THEN 1 /* Décision VENTE */
+                WHEN ID_MLCLAS = 3 AND A.VALEUR_COURS <= MIN_JR    THEN 1 /* Décision ACHAT */
+                WHEN ID_MLCLAS = 4 AND A.VALEUR_COURS >= MAX_JR    THEN 1 /* Décision VENTE */
                 ELSE 0
             END as IND_DEC
             FROM 
@@ -251,8 +251,7 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
                 PER_JR,
                 A.VALEUR_COURS,
                 MAX(A.VALEUR_COURS) OVER (PARTITION BY ID_SYMBOL, PER_JR) as MAX_JR,
-                MIN(A.VALEUR_COURS) OVER (PARTITION BY ID_SYMBOL, PER_JR) as MIN_JR,
-                AVG(A.VALEUR_COURS) OVER (PARTITION BY ID_SYMBOL, PER_SEMAINE) as MOY_SEM
+                MIN(A.VALEUR_COURS) OVER (PARTITION BY ID_SYMBOL, PER_JR) as MIN_JR
                 from FAIT_SIT_COURS_HIST A
                 inner join (select ID_TEMPS, 
                 ANNEE||MOIS||JOUR as PER_JR, 
@@ -275,7 +274,7 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
     return "OK"
 
 # --> Base SQL Live
-def Load_DB_SQL_Live(ListePaire : list):
+def Load_DB_SQL_Live(ListePaire : list, Periode_Debut = None, Periode_Fin = datetime.date.today().isoformat()):
     """
     Cette fonction charge en temps réel les données Paires présentes dans la base Historique
     """
@@ -288,13 +287,16 @@ def Load_DB_SQL_Live(ListePaire : list):
         # Step 1 : Pour chaque Paire, on alimente la base SQL Live
         
         # --
-        today = datetime.datetime.now()
-        DebutMois = str(today.year)+ "-" +str(today.month).rjust(2,'0') + "-01"
-
+        if Periode_Debut is None:
+            today = datetime.datetime.now()
+            DebutMois = str(today.year)+ "-" +str(today.month).rjust(2,'0') + "-01"        
+        else :
+            DebutMois = Periode_Debut
+        
         # --
         for symbol in L_Symbol:
             # --
-            df = Get_Live_InfoPaire(symbol, Periode_Debut = DebutMois )
+            df = Get_Live_InfoPaire(symbol, Periode_Debut = DebutMois, Periode_Fin = Periode_Fin )
 
             # --
             DimTemps = pd.DataFrame(df)
@@ -335,7 +337,7 @@ def Load_DB_SQL_Live(ListePaire : list):
             FaitCours = pd.DataFrame(df)
             FaitCours = FaitCours.merge(DimSymbol, how = 'inner')
 
-            FaitCours['ID_TEMPS'] = FaitCours['CloseTime'].astype(int)
+            FaitCours['ID_TEMPS'] = FaitCours['CloseTime'].astype('int64')
             FaitCours['VALEUR_COURS'] = FaitCours['ClosePrice'].astype(float)
             FaitCours['IND_QUOTEVOLUME'] = FaitCours['QuoteAssetVolume'].astype(float)
 
@@ -361,32 +363,41 @@ def Load_DB_SQL_Live(ListePaire : list):
     return "OK"
 
 # --> Base SQL Live Prediction
-def Load_DB_SQLPrediction(Paire, MethodeCalcul):
+def Load_DB_SQLPrediction(Paire, MethodeCalcul, LimiteML = 500):
+
+    def max_df(df, id_temps, decision):
+        df_2 = df[( (df['DEC_VENTE'] == 1) | (df['DEC_ACHAT'] == 1)) & ( df['ID_TEMPS'] < id_temps) ][['ID_TEMPS','DEC_ACHAT', 'DEC_VENTE']]
+        return df_2.iloc[df_2.shape[0] - 1][decision]
 
     try:
         DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
 
         if MethodeCalcul == "M2":
 
-            # Step 1 : Phase Entraitement sur les 6 derniers mois Histo
+            # Step 1 : Phase Entrainement sur les N derniers cours
             sql_train = """
                 select A.ID_SIT_CRS_HIS, 
                     IND_STOCH_RSI,
                     IND_RSI,
                     IND_TRIX,
                     B_A.IND_DEC, 
-                    B_V.IND_DEC
+                    B_V.IND_DEC,
+                    A.ID_TEMPS
                 from FAIT_SIT_COURS_HIST A
                 inner join FAIT_DEC_ML_CLASS B_A ON (B_A.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS and B_A.ID_MLCLAS = 3)
                 inner join FAIT_DEC_ML_CLASS B_V ON (B_V.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS and B_V.ID_MLCLAS = 4)
                 inner join DIM_TEMPS C ON (C.ID_TEMPS = A.ID_TEMPS)
                 inner join DIM_SYMBOL D ON (D.ID_SYMBOL = A.ID_SYMBOL)
-                where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null and C.ANNEE||C.MOIS >= DATE(current_date,'-6 months')
+                inner join ( SELECT MIN(ID_TEMPS) as Id_TEMPS FROM FAIT_SIT_COURS A
+						inner join DIM_SYMBOL B ON (A.ID_SYMBOL = B.ID_SYMBOL) WHERE NOM_SYMBOL = '{NomSymbol}' ) E ON ( E.Id_TEMPS > A.Id_TEMPS)
+                where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null
                 AND NOM_SYMBOL = '{NomSymbol}'
-                limit ?;
-            """.format(NomSymbol = Paire)
+                order by A.Id_TEMPS desc
+                limit {Limite};
+            """.format(NomSymbol = Paire, 
+                       Limite = LimiteML)
 
-            resultat = DB_SQL.Select(sql_train, (-1,))
+            resultat = DB_SQL.Select(sql_train)
             df_train = util.Prediction_SQL_To_DF(resultat)
             ML_Class = ML.ML_CLassification(df_train)
             print('Entrainement sur les 6 Derniers Mois')
@@ -398,30 +409,52 @@ def Load_DB_SQLPrediction(Paire, MethodeCalcul):
                         IND_RSI, 
                         IND_TRIX,
                         NULL, 
-                        NULL
+                        NULL,
+                        A.ID_TEMPS
                         from FAIT_SIT_COURS A
                         inner join DIM_SYMBOL B ON (B.ID_SYMBOL = A.ID_SYMBOL)
                         where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null
                         AND NOM_SYMBOL = '{NomSymbol}'
-                        limit ?; 
+                        order by A.Id_TEMPS desc; 
                     """.format(NomSymbol = Paire)
             
-            resultat = DB_SQL.Select(sql_Test, (-1,))
+            resultat = DB_SQL.Select(sql_Test)
             df_test = util.Prediction_SQL_To_DF(resultat)
             df_test = ML_Class.predict(df_test)
             print('Prediction sur les données Lives')
+            
+
+            # Optimisation résultat Prediction
+            df_temp = df_test[(df_test['DEC_VENTE'] == 1) | (df_test['DEC_ACHAT'] == 1)][['ID_TEMPS','DEC_ACHAT', 'DEC_VENTE', 'ID_SIT_CRS']]
+            df_temp = df_temp.sort_values(by = 'ID_TEMPS')
+
+            for i in range(0, df_temp.shape[0]):
+                if i > 0 :
+                    #cas Décision Achat
+                    DEC_ACHAT = df_temp.iloc[i]['DEC_ACHAT']
+                    DEC_VENTE_1 = max_df(df_temp, df_temp.iloc[i]['ID_TEMPS'], 'DEC_VENTE')
+                    if (DEC_ACHAT == 1) & ( DEC_VENTE_1 == 0):
+                        df_temp.iat[i, 1] = 0
+
+                    #cas Décision Vente
+                    DEC_VENTE = df_temp.iloc[i]['DEC_VENTE']
+                    DEC_ACHAT_1 = max_df(df_temp, df_temp.iloc[i]['ID_TEMPS'], 'DEC_ACHAT')
+                    if (DEC_VENTE == 1) & ( DEC_ACHAT_1 == 0):
+                        df_temp.iat[i, 2] = 0
+
+            print('Optimisation Prediction Resultat')
 
             # Stockage resultat Prediction
             # --
-            Fait_Dec_A = pd.DataFrame(df_test['ID_SIT_CRS'])
+            Fait_Dec_A = pd.DataFrame(df_temp['ID_SIT_CRS'])
             Fait_Dec_A['ID_MLCLAS'] = 3
-            Fait_Dec_A['DEC_ACHAT'] = df_test['DEC_ACHAT']
+            Fait_Dec_A['DEC_ACHAT'] = df_temp['DEC_ACHAT']
             DB_SQL.Alim_FaitPrediction(Fait_Dec_A)
 
             # --
-            Fait_Dec_V = pd.DataFrame(df_test['ID_SIT_CRS'])
+            Fait_Dec_V = pd.DataFrame(df_temp['ID_SIT_CRS'])
             Fait_Dec_V['ID_MLCLAS'] = 4
-            Fait_Dec_V['DEC_VENTE'] = df_test['DEC_VENTE']
+            Fait_Dec_V['DEC_VENTE'] = df_temp['DEC_VENTE']
             DB_SQL.Alim_FaitPrediction(Fait_Dec_V)
 
             print('Chargement Prédiction Achat Vente M2')
@@ -477,6 +510,7 @@ def Get_DataPaire(ListePaire :list, Periode_Debut, Periode_Fin, MethodeCalcul) :
         LEFT OUTER JOIN FAIT_DEC_ML_CLASS D_ACHAT ON (D_ACHAT.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS AND D_ACHAT.ID_MLCLAS = {Achat})
         LEFT OUTER JOIN FAIT_DEC_ML_CLASS D_VENTE ON (D_VENTE.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS AND D_VENTE.ID_MLCLAS = {Vente})
         WHERE NOM_SYMBOL IN ({Liste_Symbol})
+        AND A.ID_TEMPS NOT IN (SELECT ID_TEMPS FROM FAIT_SIT_COURS)
         AND ANNEE||'-'||MOIS||'-'||JOUR BETWEEN '{Periode_Debut}' AND '{Periode_Fin}'
 
         UNION
@@ -491,7 +525,6 @@ def Get_DataPaire(ListePaire :list, Periode_Debut, Periode_Fin, MethodeCalcul) :
         LEFT OUTER JOIN FAIT_PREDICTION D_ACHAT ON (D_ACHAT.ID_SIT_CRS = A.ID_SIT_CRS AND D_ACHAT.ID_MLCLAS = {Achat})
         LEFT OUTER JOIN FAIT_PREDICTION D_VENTE ON (D_VENTE.ID_SIT_CRS = A.ID_SIT_CRS AND D_VENTE.ID_MLCLAS = {Vente})
         WHERE NOM_SYMBOL IN ({Liste_Symbol})
-        AND A.ID_TEMPS NOT IN (SELECT ID_TEMPS FROM FAIT_SIT_COURS_HIST)
         AND ANNEE||'-'||MOIS||'-'||JOUR BETWEEN '{Periode_Debut}' AND '{Periode_Fin}';
         """.format(Liste_Symbol = MesSymbols, 
                 Periode_Debut = Periode_Debut, 
@@ -533,7 +566,7 @@ def Get_DataPaire(ListePaire :list, Periode_Debut, Periode_Fin, MethodeCalcul) :
         print("KO")
         return pd.DataFrame(columns=['ID_TEMPS', 'DATE_TEMPS', 'NOM_SYMBOL', 'VALEUR_COURS', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX','DEC_ACHAT', 'DEC_VENTE'])
     
-    return df_resultat
+    return df_resultat.sort_values(by='ID_TEMPS')
 
 # -->
 def	Get_Graphe_Prediction_Achat_Vente(Data):
@@ -548,33 +581,62 @@ def	Get_Graphe_Prediction_Achat_Vente(Data):
     return Fig
 
 # -->
-def Get_SimulationGain(Data, Symbol):
+def Get_SimulationGain(Data, Symbol,Capital_depart = 1000):
     """
-    Cette fonction Effectue une simulation de Gain sur une période donnée
+    Cette fonction effectue une simulation de gain sur une période donnée
     """
     try:
-        Data=Data[ (Data['DEC_ACHAT'] == 1) | (Data['DEC_VENTE'] == 1) ]
-        rapport = util_TA.Generation_Rapport_Backtest(Data, Symbol)
-    
-    except:
-        print("KO")
+        Data = Data.copy()
+        Data = Data[(Data['DEC_ACHAT'] == 1) | (Data['DEC_VENTE'] == 1)]
+                                                                   
+        prev_achat = None
+        prev_vente = None
+        to_drop = []
 
-    return ( rapport, Data)
+        for index, row in Data.iterrows():
+            if prev_achat == row['DEC_ACHAT'] and prev_vente == row['DEC_VENTE']:
+                to_drop.append(index)
+            else:
+                prev_achat = row['DEC_ACHAT']
+                prev_vente = row['DEC_VENTE']
+
+        Data = Data.drop(to_drop)
+        if Data.iloc[0]['DEC_VENTE'] == 1:
+            Data = Data.drop(Data.index[0])
+        # ... les autres opérations sur Data
+
+        rapport = util_TA.Generation_Rapport_Backtest(Data, Symbol,Capital_depart)
+        
+    except Exception as e:
+        print("Une erreur est survenue lors de l'exécution de Get_SimulationGain:")
+        print(str(e))
+        #print("Traceback de l'erreur :")
+        #traceback.print_exc()
+        rapport = None
+        Data = None
+
+    return (rapport, Data)
 
 # -->
-def	Get_Graphe_SimulationGain(Data):
+def Get_Graphe_SimulationGain(Data):
     """
-    Cette fonction retourne un graphe de simulation de Gain
+    Cette fonction retourne un graphe de simulation de Gain 
     """
     try:
-        df_temps = Data
+        df_temps = Data.copy()
         df_temps['timestamp_sec'] = df_temps['ID_TEMPS'] * 0.001
         df_temps['datetime'] = pd.to_datetime(df_temps['ID_TEMPS'], unit='ms')
-        df_temps.set_index('datetime', inplace=True)
-    except :
-        print("KO")
+        df_temps.set_index('datetime', inplace=True) 
+        #df_temps.to_csv("data2.csv") 
+    except Exception as e:
+        print("Une erreur est survenue lors de l'exécution de Get_Graphe_SimulationGain:")
+        print(str(e))
+        df_temps = None
 
-    return util.affiche_graphe_score(df_temps)
+    if df_temps is not None:
+        return util.affiche_graphe_score(df_temps)
+    else:
+        return None
 
 """
 ########################################################################
@@ -582,7 +644,7 @@ def	Get_Graphe_SimulationGain(Data):
 ########################################################################
 """
 # -->
-def	Get_Live_InfoPaire(Paire, Interval = '1h', Periode_Debut = datetime.date.today().isoformat()):
+def	Get_Live_InfoPaire(Paire, Interval = '1h', Periode_Debut = datetime.date.today().isoformat(), Periode_Fin = datetime.date.today().isoformat()):
     """
     Cette fonction retourne les infos d'une Paire sur une Période de 24h
     """
@@ -591,9 +653,9 @@ def	Get_Live_InfoPaire(Paire, Interval = '1h', Periode_Debut = datetime.date.tod
         columns = ['OpenTime', 'OpenPrice','HighPrice','LowPrice','ClosePrice','Volume','CloseTime','QuoteAssetVolume','NumberTrade','BuyAssetVol','BuyQuoteVol','Ignore' ]
 
         API_Live = live.Binance_Live()
-        X= API_Live.klines(Paire, Interval, startTime = util.Convertir_toTimestamp(Periode_Debut))
+        X= API_Live.klines(Paire, Interval, startTime = util.Convertir_toTimestamp(Periode_Debut), endTime = util.Convertir_toTimestamp(Periode_Fin) )
         df = pd.DataFrame(X, columns= columns)
-        print('Récuparation de la Paire {} à partir du {}'.format(Paire, Periode_Debut))
+        print('Récuparation de la Paire {} à partir du {} jusqu''au {} '.format(Paire, Periode_Debut, Periode_Fin ))
 
         df['INTERVALLE'] = Interval
         df['NOM_SYMBOL'] = Paire
@@ -614,10 +676,3 @@ def Get_Graphe_LivePaire(Data):
     """
     # A complétr :)
     return "KO"
-
-
-""""
-
-def	Get_Live_InfoPersonne(CLE_API):
-	return "KO"
-"""
