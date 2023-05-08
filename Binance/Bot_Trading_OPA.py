@@ -12,7 +12,7 @@ import datetime
 
 # Paramétrage Générique
 PathDatabase = 'test.db'
-PathCreateTable = 'Dao/Create_DBSQLITE_OPA.sql'
+PathCreateTable = 'Binance/Dao/Create_DBSQLITE_OPA.sql'
 
 Host_DBMongo = 'localhost' 
 Port_DBMongo = 27017
