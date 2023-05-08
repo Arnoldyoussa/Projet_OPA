@@ -170,7 +170,7 @@ page_2_layout = dbc.Container([
 def execute_in_parallel(currency_pair, date_debut, date_fin, capital, selected_method):
     global fig2_M1_E, fig2_M2_E, fig_M1_E, fig_M2_E, rapport_M1_E, rapport_M2_E,is_thread_running 
     is_thread_running = True
-    #Bot.Reset_DB_All()
+    Bot.Reset_DB_All()
     #base reinitialisé
     Bot.Load_DB_Mongo([currency_pair], date_debut, date_fin)
     #paire télécharger en mongo
