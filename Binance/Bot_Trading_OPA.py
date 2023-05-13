@@ -216,22 +216,7 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
         
         # --
         df_temp= Get_DataPaire(ListePaire, Periode_Debut, Periode_Fin, 'M1')
-        df_temp = util_TA.boucle_trading(df_temp[['ID_SIT_CRS','VALEUR_COURS', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX']])
-        print('Lancement Fonction Boucle Trading M1')      
-        
-        # --
-        Fait_Dec_A = pd.DataFrame(df_temp['ID_SIT_CRS'])
-        Fait_Dec_A['ID_MLCLAS'] = 1
-        Fait_Dec_A['DEC_ACHAT'] = df_temp['DEC_ACHAT']
-        DB_SQL.Alim_FaitDecision_Histo(Fait_Dec_A)
-
-        # --
-        Fait_Dec_V = pd.DataFrame(df_temp['ID_SIT_CRS'])
-        Fait_Dec_V['ID_MLCLAS'] = 2
-        Fait_Dec_V['DEC_VENTE'] = df_temp['DEC_VENTE']
-        DB_SQL.Alim_FaitDecision_Histo(Fait_Dec_V)
-
-        print('Chargement Desion Achat Vente M1')
+        Alim_Data_M1(df_temp, 'H')
 
         # Step 4 : Apprentissage Décision Achat / Vente Méthode 2
         sql_cript = """
@@ -263,7 +248,7 @@ def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
             SELECT ID_SIT_CRS_HIS, ID_MLCLAS, IND_DEC  from FAIT_DEC_ML_CLASS
         """
         DB_SQL.Execute(sql_cript)
-        print('Chargement Desion Achat Vente M2')
+        print('Chargement Decision Histo Achat Vente M2')
 
         # Fin Connection
         DB_SQL.CloseConnection()
@@ -363,7 +348,7 @@ def Load_DB_SQL_Live(ListePaire : list, Periode_Debut = None, Periode_Fin = date
     return "OK"
 
 # --> Base SQL Live Prediction
-def Load_DB_SQLPrediction(Paire, MethodeCalcul, LimiteML = 500):
+def Load_DB_SQLPrediction(Paire, MethodeCalcul, LimiteML = 50000):
 
     def max_df(df, id_temps, decision):
         df_2 = df[( (df['DEC_VENTE'] == 1) | (df['DEC_ACHAT'] == 1)) & ( df['ID_TEMPS'] < id_temps) ][['ID_TEMPS','DEC_ACHAT', 'DEC_VENTE']]
@@ -382,7 +367,8 @@ def Load_DB_SQLPrediction(Paire, MethodeCalcul, LimiteML = 500):
                     IND_TRIX,
                     B_A.IND_DEC, 
                     B_V.IND_DEC,
-                    A.ID_TEMPS
+                    A.ID_TEMPS,
+                    A.VALEUR_COURS
                 from FAIT_SIT_COURS_HIST A
                 inner join FAIT_DEC_ML_CLASS B_A ON (B_A.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS and B_A.ID_MLCLAS = 3)
                 inner join FAIT_DEC_ML_CLASS B_V ON (B_V.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS and B_V.ID_MLCLAS = 4)
@@ -410,7 +396,8 @@ def Load_DB_SQLPrediction(Paire, MethodeCalcul, LimiteML = 500):
                         IND_TRIX,
                         NULL, 
                         NULL,
-                        A.ID_TEMPS
+                        A.ID_TEMPS,
+                        A.VALEUR_COURS
                         from FAIT_SIT_COURS A
                         inner join DIM_SYMBOL B ON (B.ID_SYMBOL = A.ID_SYMBOL)
                         where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null
@@ -457,10 +444,29 @@ def Load_DB_SQLPrediction(Paire, MethodeCalcul, LimiteML = 500):
             Fait_Dec_V['DEC_VENTE'] = df_temp['DEC_VENTE']
             DB_SQL.Alim_FaitPrediction(Fait_Dec_V)
 
-            print('Chargement Prédiction Achat Vente M2')
+            print('Chargement Prédiction Live Achat Vente M2')
 
         elif MethodeCalcul == "M1":
-            print('Methode 1 :)')
+
+            sql_Test = """select ID_SIT_CRS, 
+                        IND_STOCH_RSI, 
+                        IND_RSI, 
+                        IND_TRIX,
+                        NULL, 
+                        NULL,
+                        A.ID_TEMPS,
+                        A.VALEUR_COURS
+                        from FAIT_SIT_COURS A
+                        inner join DIM_SYMBOL B ON (B.ID_SYMBOL = A.ID_SYMBOL)
+                        where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null
+                        AND NOM_SYMBOL = '{NomSymbol}'
+                        order by A.Id_TEMPS desc; 
+                    """.format(NomSymbol = Paire)
+            
+            resultat = DB_SQL.Select(sql_Test)
+            df_test = util.Prediction_SQL_To_DF(resultat)
+
+            Alim_Data_M1(df_test, 'L')
 
         # -- 
         DB_SQL.CloseConnection()
@@ -653,8 +659,24 @@ def	Get_Live_InfoPaire(Paire, Interval = '1h', Periode_Debut = datetime.date.tod
         columns = ['OpenTime', 'OpenPrice','HighPrice','LowPrice','ClosePrice','Volume','CloseTime','QuoteAssetVolume','NumberTrade','BuyAssetVol','BuyQuoteVol','Ignore' ]
 
         API_Live = live.Binance_Live()
-        X= API_Live.klines(Paire, Interval, startTime = util.Convertir_toTimestamp(Periode_Debut), endTime = util.Convertir_toTimestamp(Periode_Fin) )
+        startTime = util.Convertir_toTimestamp(Periode_Debut)
+        endTime = util.Convertir_toTimestamp(Periode_Fin)
+
+        # --> initialisation Boucle
+        X= API_Live.klines(Paire, Interval, startTime = startTime, endTime = endTime )
         df = pd.DataFrame(X, columns= columns)
+        startTime = df['CloseTime'].max()
+
+        # --> Lancement de la boucle pour récupérer tous les cours de la période
+        while endTime >= startTime:
+            X= API_Live.klines(Paire, Interval, startTime = startTime, endTime = endTime )
+            df_temps = pd.DataFrame(X, columns= columns)
+            df = pd.concat([df, df_temps], axis = 0)
+            startTime = df_temps['CloseTime'].max()
+        
+        # --> suppression des doublons
+        df = df.drop_duplicates(keep='first')
+
         print('Récuparation de la Paire {} à partir du {} jusqu''au {} '.format(Paire, Periode_Debut, Periode_Fin ))
 
         df['INTERVALLE'] = Interval
@@ -669,10 +691,52 @@ def	Get_Live_InfoPaire(Paire, Interval = '1h', Periode_Debut = datetime.date.tod
     
     return df
 
-# -->
-def Get_Graphe_LivePaire(Data):
+# --> 
+def Get_API_Binance():
     """
-    Cette fonction retourne le graphe en Temps réel d'une Paire sur une Période de 24h
+    Cette fonction retourne la liste des Paires existantes sur Binance
     """
-    # A complétr :)
-    return "KO"
+    try:
+        DataLive = live.Binance_Live()
+        return DataLive
+    except:
+        return 'KO'
+
+# --> 
+def Alim_Data_M1(Data, TypeDate):
+    """
+    Cette fonction permet d'alimenter les tables Prédictions / Decision avec la méthode 1
+    """
+    
+    try:
+
+        DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
+
+        # --
+        df_temp = util_TA.boucle_trading(Data[['ID_SIT_CRS','VALEUR_COURS', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX']])
+        print('Lancement Fonction Boucle Trading M1')      
+        
+        # --
+        Fait_Dec_A = pd.DataFrame(df_temp['ID_SIT_CRS'])
+        Fait_Dec_A['ID_MLCLAS'] = 1
+        Fait_Dec_A['DEC_ACHAT'] = df_temp['DEC_ACHAT']
+
+        # --
+        Fait_Dec_V = pd.DataFrame(df_temp['ID_SIT_CRS'])
+        Fait_Dec_V['ID_MLCLAS'] = 2
+        Fait_Dec_V['DEC_VENTE'] = df_temp['DEC_VENTE']
+
+        if TypeDate == 'L':
+            DB_SQL.Alim_FaitPrediction(Fait_Dec_A)
+            DB_SQL.Alim_FaitPrediction(Fait_Dec_V)
+            print('Chargement Prediction Live Achat Vente M1')
+
+        elif TypeDate == 'H':
+            DB_SQL.Alim_FaitDecision_Histo(Fait_Dec_A)
+            DB_SQL.Alim_FaitDecision_Histo(Fait_Dec_V)
+            print('Chargement Desision Histo Achat Vente M1')
+
+    except :
+        return "KO"
+
+    return "OK"

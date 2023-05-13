@@ -89,15 +89,16 @@ def affiche_graphe_score(dfTest):
         yaxis=dict(title="Évolution du wallet en %"),
         barmode="overlay"
     )
-    x_labels = bh_monthly_returns.index.strftime('%B %Y')
 
+    # Créer et afficher la figure
+    fig = go.Figure(data=[bar_chart_wallet, bar_chart_buy_and_hold], layout=layout)
+
+    # Générer les étiquettes de l'axe des x
+    x_labels = bh_monthly_returns.index.strftime('%B %Y')
 
     # Mettre à jour l'axe des x avec les étiquettes générées
     fig.update_xaxes(type='category', tickvals=bh_monthly_returns.index, ticktext=x_labels)
-    # Créer et afficher la figure
-    fig = go.Figure(data=[bar_chart_wallet, bar_chart_buy_and_hold], layout=layout)
-    # Décaler manuellement les étiquettes de l'axe des abscisses
-
+    
     return fig
 
 # --
@@ -105,14 +106,15 @@ def Prediction_SQL_To_DF(ResultatSQL_Class) :
     
     L = list()
     for i in ResultatSQL_Class:
-        (a, b, c, d, e, f, g) = i
+        (a, b, c, d, e, f, g, h) = i
         L.append({'ID_SIT_CRS' : a,
                  'IND_STOCH_RSI' : b, 
                  'IND_RSI' : c, 
                  'IND_TRIX' : d ,
                  'DEC_ACHAT' :e ,
                  'DEC_VENTE' : f,
-                 'ID_TEMPS' : g
+                 'ID_TEMPS' : g,
+                 'VALEUR_COURS' : h
                  })
 
     return pd.DataFrame(L)
