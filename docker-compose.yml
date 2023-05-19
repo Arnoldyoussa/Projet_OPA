@@ -1,14 +1,11 @@
-version : "3.9"
+version : "3"
 services:
   mongo:
     image : "mongo"
     network_mode: host
 
   binance:
-    build: .
-    image : "trading_opa:lastest"
+    image : "arnoldyoussa/trading_opa:latest"
     depends_on:
       - mongo
-    volumes:
-     - .:/exploit/Projet_OPA
     network_mode: host
