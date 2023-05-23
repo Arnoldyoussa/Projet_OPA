@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-# --
+# -- 
 def Convertir_toTimestamp(DateIsoFormat):
     return int(datetime.datetime.fromisoformat(DateIsoFormat).timestamp() * 1000)
 
@@ -38,18 +38,23 @@ def visualiser_graphe_Moustache(Data):
 
 # --
 def visualiser_transactions(L_Dataframe):
-    fig = go.Figure()
-    # Ajout de la courbe de la colonne 'valeur_cours'
-    fig.add_trace(go.Scatter(x=L_Dataframe.index, y=L_Dataframe['VALEUR_COURS'], mode='lines', name='Valeur du cours'))
+    try :
+        L_Dataframe = L_Dataframe.sort_values(by='ID_TEMPS')
 
-    # Ajout des points verts pour les achats
-    fig.add_trace(go.Scatter(x=L_Dataframe[L_Dataframe['DEC_ACHAT'] == 1].index, y=L_Dataframe[L_Dataframe['DEC_ACHAT'] == 1]['VALEUR_COURS'], mode='markers', marker=dict(color='green', symbol='circle'), name=' Decision Achat'))
+        fig = go.Figure()
+        # Ajout de la courbe de la colonne 'valeur_cours'
+        fig.add_trace(go.Scatter(x=L_Dataframe.index, y=L_Dataframe['VALEUR_COURS'], mode='lines', name='Valeur du cours'))
 
-    # Ajout des points rouges pour les ventes
-    fig.add_trace(go.Scatter(x=L_Dataframe[L_Dataframe['DEC_VENTE'] == 1].index, y=L_Dataframe[L_Dataframe['DEC_VENTE'] == 1]['VALEUR_COURS'], mode='markers', marker=dict(color='red', symbol='circle'), name='Decision Vente'))
-    # Configuration des titres et des axes
-    fig.update_layout(title='Courbe de la paire par rapport au temps', xaxis_title='Temps', yaxis_title='Valeur de la paire')
-    
+        # Ajout des points verts pour les achats
+        fig.add_trace(go.Scatter(x=L_Dataframe[L_Dataframe['DEC_ACHAT'] == 1].index, y=L_Dataframe[L_Dataframe['DEC_ACHAT'] == 1]['VALEUR_COURS'], mode='markers', marker=dict(color='green', symbol='circle'), name=' Decision Achat'))
+
+        # Ajout des points rouges pour les ventes
+        fig.add_trace(go.Scatter(x=L_Dataframe[L_Dataframe['DEC_VENTE'] == 1].index, y=L_Dataframe[L_Dataframe['DEC_VENTE'] == 1]['VALEUR_COURS'], mode='markers', marker=dict(color='red', symbol='circle'), name='Decision Vente'))
+        # Configuration des titres et des axes
+        fig.update_layout(title='Courbe de la paire par rapport au temps', xaxis_title='Temps', yaxis_title='Valeur de la paire')
+    except Exception as e:
+        print("Une erreur est survenue lors de l'exécution de visualiser_transactions:")
+        print(str(e))
     return fig
 
 # --
@@ -85,7 +90,7 @@ def affiche_graphe_score(dfTest):
     # Créer une mise en page pour le graphique
     layout = go.Layout(
         title="Évolution du wallet en % par rapport au temps (avec stratégie Buy and Hold)",
-        xaxis=dict(title="Mois", tickformat="%b %Y"),
+        xaxis=dict(title="Mois", tickformat="%b %Y"), 
         yaxis=dict(title="Évolution du wallet en %"),
         barmode="overlay"
     )

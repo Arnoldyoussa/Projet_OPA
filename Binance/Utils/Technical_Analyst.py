@@ -29,7 +29,7 @@ def Calculer_SMA(L_DataFrame,L_indice):
 
 def Calculer_RSI(L_DataFrame, n=14, k=3, d=3):
     # Calculer la différence entre le cours de clôture et le cours de clôture précédent
-    L_Delta = L_DataFrame.diff()
+    L_Delta = L_DataFrame.diff() 
     # Initialiser les séries L_Gain et perte avec des valeurs nulle
     L_Gain = pd.Series(0, L_Delta.index)
     L_Pertes = pd.Series(0, L_Delta.index)
@@ -63,29 +63,10 @@ def sellCondition(row):
     return False
   
 def boucle_trading(L_Dataframe_Cours, initial_usdt = 100000, takerFee = 0.0007):
-                       
-            
-                               
-                            
-                            
-                                 
-
+    pd.options.mode.chained_assignment = None  # default='warn'
     with open("output_trading_boucle.txt", "a") as file:
-                                                       
-                                         
-                                          
-                                                                                
-                                  
-                                 
-                             
-                    
-                                                                 
-                                               
-
         duplicated_rows = L_Dataframe_Cours.index.duplicated(keep='first')
- 
         unique_rows = ~duplicated_rows
- 
         L_Temps  = L_Dataframe_Cours[unique_rows]
         usdt = initial_usdt
         sellReady = False
@@ -94,16 +75,16 @@ def boucle_trading(L_Dataframe_Cours, initial_usdt = 100000, takerFee = 0.0007):
         L_Temps.loc[:, 'DEC_ACHAT'] = 0
         L_Temps.loc[:, 'DEC_VENTE'] = 0
         # Identifier les lignes en double (gardez la première occurrence)
-        for index, row in L_Temps.iterrows():
+        for index, row in L_Temps.iterrows(): 
 
                 if buyCondition(row) and usdt > 0 and buyReady == True :
                     print("Date : ",index," CONDITION ACHAT sellready = ", sellReady, " buyready=", buyReady, file=file)
                     # Définition du prix d'achat
-                    buyPrice = row['VALEUR_COURS']
+                    buyPrice = row['VALEUR_COURS']  
                     # Calcul du nombre de coins achetés, avec prise en compte des frais
                     coin = usdt / buyPrice
                     fee = takerFee * coin
-                    coin = coin - fee
+                    coin = coin - fee 
                     usdt = 0
                     # Mise à jour de la colonne 'achat' avec la valeur 1
                     L_Temps.at[index, 'DEC_ACHAT'] = 1
@@ -129,10 +110,12 @@ def boucle_trading(L_Dataframe_Cours, initial_usdt = 100000, takerFee = 0.0007):
         # Utilisation de la fonction generate_report_v4 pour mettre à jour les valeurs du wallet
         # Filtrage des lignes du DataFrame pour ne garder que celles ayant une transaction d'achat ou de vente
         #L_Dataframe_Filtrer_Transactions = L_Dataframe_Cours.query('DEC_ACHAT == 1 or DEC_VENTE == 1')
-    
+    L_Temps.to_csv("ltemps.csv")
+    #L_Temps= L_Temps.sort_values(by = 'ID_TEMPS')
     return L_Temps
 
 def Generation_Rapport_Backtest(L_Dataframe_Filtrer_Transactions, L_Symbole, L_Capital_Depart = 1000, L_Frais_Transactions = 0.0007):
+    pd.options.mode.chained_assignment = None  # default='warn'
 
      # Ajout d'une colonne 'wallet' et initialisation avec la valeur initiale du portefeuille   
     L_Dataframe_Filtrer_Transactions['wallet'] = L_Capital_Depart

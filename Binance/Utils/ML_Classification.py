@@ -1,12 +1,12 @@
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
 import pandas as pd
-
+ 
 class ML_CLassification:
     def __init__(self, Data):
         self.DataTrain = Data[['ID_SIT_CRS','IND_STOCH_RSI','IND_RSI','IND_TRIX','DEC_ACHAT','DEC_VENTE']]
         self.ML_Class_Achat = self.fit('ACHAT')
-        self.ML_Class_Vente = self.fit('VENTE')
+        self.ML_Class_Vente = self.fit('VENTE') 
 
     def fit(self, TypeDecision, test_size = 0.2, random_state = 42 ):
         
@@ -25,11 +25,12 @@ class ML_CLassification:
         return MLClass
     
     def predict(self,  Data):
-        DataTest = Data[['ID_SIT_CRS', 'ID_TEMPS','IND_STOCH_RSI','IND_RSI','IND_TRIX']]
-        y_predA = self.ML_Class_Achat.predict(DataTest.drop(columns = ['ID_SIT_CRS','ID_TEMPS']))
-        y_predV = self.ML_Class_Vente.predict(DataTest.drop(columns = ['ID_SIT_CRS','ID_TEMPS']))
-
-        return pd.concat([Data[['ID_SIT_CRS', 'ID_TEMPS']], pd.DataFrame(y_predV, columns = ['DEC_VENTE']), pd.DataFrame(y_predA, columns = ['DEC_ACHAT'])], axis = 1)
+        DataTest = Data[['ID_SIT_CRS_HIS', 'ID_TEMPS','IND_STOCH_RSI','IND_RSI','IND_TRIX']]
+        y_predA = self.ML_Class_Achat.predict(DataTest.drop(columns = ['ID_SIT_CRS_HIS','ID_TEMPS']))
+        y_predV = self.ML_Class_Vente.predict(DataTest.drop(columns = ['ID_SIT_CRS_HIS','ID_TEMPS']))
+        Data=pd.concat([Data[['ID_SIT_CRS_HIS', 'ID_TEMPS','VALEUR_COURS']], pd.DataFrame(y_predV, columns = ['DEC_VENTE']), pd.DataFrame(y_predA, columns = ['DEC_ACHAT'])], axis = 1)
+        Data.dropna(inplace=True)
+        return Data
 
         
     
