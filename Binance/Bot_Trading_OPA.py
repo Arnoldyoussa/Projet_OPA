@@ -348,7 +348,7 @@ def Load_DB_SQL_Live(ListePaire : list, Periode_Debut = None, Periode_Fin = date
     return "OK"
 
 # --> Base SQL Live Prediction
-def Load_DB_SQLPrediction(Paire, MethodeCalcul, LimiteML = 50000):
+def Load_DB_SQLPrediction(Paire, MethodeCalcul, Periode_Debut = None, Periode_Fin = None, LimiteML = 50000):
 
     def max_df(df, id_temps, decision):
         df_2 = df[( (df['DEC_VENTE'] == 1) | (df['DEC_ACHAT'] == 1)) & ( df['ID_TEMPS'] < id_temps) ][['ID_TEMPS','DEC_ACHAT', 'DEC_VENTE']]
@@ -448,24 +448,7 @@ def Load_DB_SQLPrediction(Paire, MethodeCalcul, LimiteML = 50000):
 
         elif MethodeCalcul == "M1":
 
-            sql_Test = """select ID_SIT_CRS, 
-                        IND_STOCH_RSI, 
-                        IND_RSI, 
-                        IND_TRIX,
-                        NULL, 
-                        NULL,
-                        A.ID_TEMPS,
-                        A.VALEUR_COURS
-                        from FAIT_SIT_COURS A
-                        inner join DIM_SYMBOL B ON (B.ID_SYMBOL = A.ID_SYMBOL)
-                        where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null
-                        AND NOM_SYMBOL = '{NomSymbol}'
-                        order by A.Id_TEMPS desc; 
-                    """.format(NomSymbol = Paire)
-            
-            resultat = DB_SQL.Select(sql_Test)
-            df_test = util.Prediction_SQL_To_DF(resultat)
-
+            df_test=Get_DataPaire([Paire],Periode_Debut,Periode_Fin,"M1")
             Alim_Data_M1(df_test, 'L')
 
         # -- 
