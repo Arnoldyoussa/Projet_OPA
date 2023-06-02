@@ -110,7 +110,6 @@ def boucle_trading(L_Dataframe_Cours, initial_usdt = 100000, takerFee = 0.0007):
         # Utilisation de la fonction generate_report_v4 pour mettre à jour les valeurs du wallet
         # Filtrage des lignes du DataFrame pour ne garder que celles ayant une transaction d'achat ou de vente
         #L_Dataframe_Filtrer_Transactions = L_Dataframe_Cours.query('DEC_ACHAT == 1 or DEC_VENTE == 1')
-    L_Temps.to_csv("ltemps.csv")
     #L_Temps= L_Temps.sort_values(by = 'ID_TEMPS')
     return L_Temps
 
@@ -212,7 +211,7 @@ def Generation_Rapport_Backtest(L_Dataframe_Filtrer_Transactions, L_Symbole, L_C
         "Performance_Buy_and_Hold": "{}%".format(round(holdPercentage, 2)),
         "Performance_vs_Buy_and_Hold": "{}%".format(round(vsHoldPercentage, 2)),
         "Meilleur_trade": "{}%, le {}".format(str(bestTrade), str(idbest)),
-        "Pire_trade": "{}%, le {}".format(str(worstTrade), str(idworst)),
+        "Pire_trade": "{}%, le {}".format(str(worstTrade), str(idworst)), 
         "Nombre_total_trades": totalTrades,
         "Nombre_trades_positifs": totalGoodTrades,
         "Nombre_trades_negatifs": totalBadTrades,
@@ -224,5 +223,5 @@ def Generation_Rapport_Backtest(L_Dataframe_Filtrer_Transactions, L_Symbole, L_C
     
     L_Rapport = pd.DataFrame(L_Rapport_dict, index=[0])
     
-    return L_Rapport
+    return L_Rapport,L_Dataframe_Filtrer_Transactions
  

@@ -1,6 +1,5 @@
 import sqlite3
 import os
-import time
 
 class Drivers_SQLite:
     """
@@ -80,8 +79,6 @@ class Drivers_SQLite:
 
         return self.ClientSQLite.total_changes
     
-
-
     #--
     def Alim_DimSymbol(self, Data):
         res = self.Select('select NOM_SYMBOL, INTERVALLE from DIM_SYMBOL;')
@@ -108,89 +105,6 @@ class Drivers_SQLite:
 
         return self.ClientSQLite.total_changes
     
-
-    def Alim_DimTemps_Optimise(self, Data):
-        try:
-            start = time.time()
-
-            data_values = Data.values.tolist()
-
-            # Insertion par lots
-            batch_size = 1000
-            for i in range(0, len(data_values), batch_size):
-                batch = data_values[i:i + batch_size]
-                
-                # Insertion uniquement des lignes qui n'existent pas déjà
-                self.ClientSQLite.executemany("""
-                    INSERT INTO DIM_TEMPS (ID_TEMPS, DATE_TEMPS, SECONDES, MINUTES, HEURE, JOUR, MOIS, ANNEE, DATE_CREATION)
-                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, current_date
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM DIM_TEMPS WHERE ID_TEMPS = ?
-                    )
-                    """, [(val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7], val[0]) for val in batch])
-
-            self.Commit()
-
-            end = time.time()
-
-            print("Alim_DimTemps_Optimise took", end - start, "seconds.")
-
-            return self.ClientSQLite.total_changes
-
-        except Exception as e:
-            print("An error occurred in Alim_DimTemps_Optimise: ", e)
-
-    def clean_duplicates(self):
-        # Démarrer une transaction
-        self.ClientSQLite.execute("BEGIN TRANSACTION")
-
-        # Supprimer les doublons basés sur les clés primaires
-        self.ClientSQLite.execute("""
-            DELETE FROM FAIT_SIT_COURS_HIST
-            WHERE rowid NOT IN (
-                SELECT MIN(rowid)
-                FROM FAIT_SIT_COURS_HIST
-                GROUP BY ID_TEMPS, ID_SYMBOL
-            )
-            """)
-
-        # Valider la transaction
-        self.ClientSQLite.execute("COMMIT")
-
-
-
-
-    def Alim_FaitSituation_Histo_Optimise(self, FaiCoursHisto):
-        try:
-            start = time.time()
-
-            data_values = FaiCoursHisto.values.tolist()
-
-            # Insertion par lots
-            batch_size = 1000
-            for i in range(0, len(data_values), batch_size):
-                batch = data_values[i:i + batch_size]
-                
-                # Insertion ou remplacement des lignes existantes
-                self.ClientSQLite.executemany("""
-                    INSERT OR REPLACE INTO FAIT_SIT_COURS_HIST (ID_TEMPS, ID_SYMBOL, VALEUR_COURS, IND_SMA_20, IND_SMA_30, IND_QUOTEVOLUME, IND_CHANGEPERCENT, IND_STOCH_RSI, IND_RSI, IND_TRIX, DATE_CREATION)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_date)
-                    """, [(val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7], val[8], val[9]) for val in batch])
-
-            self.Commit()
-            self.clean_duplicates()
-            end = time.time()
-            
-            print("Alim_FaitSituation_Histo_Optimise took", end - start, "seconds.")
-
-            return self.ClientSQLite.total_changes
-
-        except Exception as e:
-            print("An error occurred in Alim_FaitSituation_Histo_Optimise: ", e)
-
-
-
-
     #--
     def Alim_FaitDecision_Histo(self, FaitDec):
         

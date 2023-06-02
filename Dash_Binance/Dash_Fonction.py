@@ -4,9 +4,11 @@ import pandas as pd
 import redis
 import json
 from Binance import Bot_Trading_OPA as Bot
+from datetime import  timedelta
 
 BINANCE_API_URL = "https://api.binance.com/api/v3/exchangeInfo"
 r = redis.Redis(host='localhost', port=6379, db=0)
+
 
 
 # Convertit le timestamp en millisecondes en une chaîne formatée
@@ -18,7 +20,6 @@ def convert_timestamp(timestamp_en_millisecondes):
 
 # Récupère les données de l'API Binance et les stocke dans Redis
 def Maj_base_redis():
-    r = redis.Redis(host='localhost', port=6379, db=0)
     response = requests.get(BINANCE_API_URL)
     
     if response.status_code == 200:
@@ -40,7 +41,6 @@ def Maj_base_redis():
 # Récupère les paires de devises depuis Redis
 def fetch_currency_pairs_redis():
     try:
-        r = redis.Redis(host='localhost', port=6379, db=0)
         cles = r.keys()  # Récupère toutes les clés de la base de données Redis
         paires_devises = []
 
@@ -71,3 +71,59 @@ def fetch_currency_pairs_binance():
         return [{"label": f"{item['baseAsset']}/{item['quoteAsset']}", "value": f"{item['baseAsset']}_{item['quoteAsset']}"} for item in data]
     else:
         return []
+    
+
+def Get_Backtest(Paire,Periode_Debut,Periode_Fin,Capital_depart,dureeJr_Entrainement):
+
+
+    # Convertir la chaîne en objet datetime
+    date_obj = dt.datetime.strptime(Periode_Debut, "%d-%m-%Y")
+    # Reformater l'objet datetime en chaîne de caractères
+    Periode_Debut = date_obj.strftime("%Y-%m-%d")
+    date_obj = dt.datetime.strptime(Periode_Fin, "%d-%m-%Y")
+    # Reformater l'objet datetime en chaîne de caractères
+    Periode_Fin = date_obj.strftime("%Y-%m-%d")
+    output = {}  # Dictionnaire pour stocker les résultats
+    for Methode in ['M1', 'M2']: 
+        if Methode =='M1':  
+            data=Bot.Get_DataPaire([Paire],Periode_Debut,Periode_Fin,"M1")
+            rapport,data_temp,wallet=Bot.Get_SimulationGain(data,Paire,Capital_depart)
+            L_Graph_simulation_gain=Bot.Get_Graphe_SimulationGain(data_temp)
+            L_Graph_prediction_AV=Bot.Get_Graphe_Prediction_Achat_Vente(data)
+            L_Graph_Good_bad_trade=Bot.Get_Graphe_Good_Bad_Trade(wallet)
+            L_Wallet=Bot.Get_Graphe_Wallet_Evolution(wallet) 
+            L_Temp = rapport.to_dict('records') 
+            L_Rapport_modifier = pd.DataFrame({ 'Information' : [i for i in L_Temp[0].keys()],   
+            'Valeur' : [L_Temp[0][i] for i in L_Temp[0].keys()] 
+            })
+            output[Methode] = { 
+                "rapport": L_Rapport_modifier.to_dict('records'), 
+                "graph_prediction": L_Graph_prediction_AV.to_dict(), 
+                "graph_simulation": L_Graph_simulation_gain.to_dict(),
+                "graph_good_bad_trade":L_Graph_Good_bad_trade.to_dict(),
+                "graph_wallet":L_Wallet.to_dict()
+            }
+        else:
+            StartTime = (dt.datetime.fromisoformat(Periode_Debut) - timedelta(days = dureeJr_Entrainement)).strftime('%Y-%m-%d')
+            Bot.Load_DB_Mongo([Paire],StartTime,Periode_Debut)
+            Bot.Load_DB_SQL_Histo([Paire],StartTime,Periode_Debut)
+            Bot.Load_DB_SQLPrediction(Paire,"M2")
+            data=Bot.Get_DataPaire([Paire],Periode_Debut,Periode_Fin,"M2")
+            rapport,data_temp,wallet=Bot.Get_SimulationGain(data,Paire,Capital_depart)
+            L_Graph_Good_bad_trade=Bot.Get_Graphe_Good_Bad_Trade(wallet)
+            L_Wallet=Bot.Get_Graphe_Wallet_Evolution(wallet)
+            L_Temp = rapport.to_dict('records')
+            L_Rapport_modifier = pd.DataFrame({ 'Information' : [i for i in L_Temp[0].keys()],  
+            'Valeur' : [L_Temp[0][i] for i in L_Temp[0].keys()] 
+            })
+            L_Graph_simulation_gain=Bot.Get_Graphe_SimulationGain(data_temp)
+            L_Graph_prediction_AV=Bot.Get_Graphe_Prediction_Achat_Vente(data)
+            output[Methode] = {
+            "rapport": L_Rapport_modifier.to_dict('records'), 
+            "graph_prediction": L_Graph_prediction_AV.to_dict(),  
+            "graph_simulation": L_Graph_simulation_gain.to_dict(),
+            "graph_good_bad_trade":L_Graph_Good_bad_trade.to_dict(),
+            "graph_wallet":L_Wallet.to_dict()
+            }   
+    print("Fin du Backtest") 
+    return output

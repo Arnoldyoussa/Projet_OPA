@@ -23,14 +23,15 @@ class ML_CLassification:
         MLClass.fit(X_train, y_train)
 
         return MLClass
-    
+     
     def predict(self,  Data):
-        DataTest = Data[['ID_SIT_CRS_HIS', 'ID_TEMPS','IND_STOCH_RSI','IND_RSI','IND_TRIX']]
-        y_predA = self.ML_Class_Achat.predict(DataTest.drop(columns = ['ID_SIT_CRS_HIS','ID_TEMPS']))
-        y_predV = self.ML_Class_Vente.predict(DataTest.drop(columns = ['ID_SIT_CRS_HIS','ID_TEMPS']))
-        Data=pd.concat([Data[['ID_SIT_CRS_HIS', 'ID_TEMPS','VALEUR_COURS']], pd.DataFrame(y_predV, columns = ['DEC_VENTE']), pd.DataFrame(y_predA, columns = ['DEC_ACHAT'])], axis = 1)
-        Data.dropna(inplace=True)
-        return Data
+        DataTest = Data[['ID_SIT_CRS', 'ID_TEMPS','IND_STOCH_RSI','IND_RSI','IND_TRIX']]
+        y_predA = self.ML_Class_Achat.predict(DataTest.drop(columns = ['ID_SIT_CRS','ID_TEMPS']))
+        y_predV = self.ML_Class_Vente.predict(DataTest.drop(columns = ['ID_SIT_CRS','ID_TEMPS']))
+
+        return pd.concat([Data[['ID_SIT_CRS', 'ID_TEMPS']], pd.DataFrame(y_predV, columns = ['DEC_VENTE']), pd.DataFrame(y_predA, columns = ['DEC_ACHAT'])], axis = 1)
+
+        
 
         
     

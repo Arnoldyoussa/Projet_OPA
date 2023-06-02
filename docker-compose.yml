@@ -1,14 +1,29 @@
-version : "3.9"
+version: '3'
 services:
-  mongo:
-    image : "mongo"
-    network_mode: host
-
-  binance:
+  web:
     build: .
-    image : "trading_opa:lastest"
-    depends_on:
-      - mongo
+    ports:
+      - "8050:8050"
     volumes:
-     - .:/exploit/Projet_OPA
-    network_mode: host
+      - .:/app
+      - db-data:/app  # Le volume Docker pour persister la base de données SQLite
+    depends_on:
+      - redis
+      - mongo
+
+  redis:
+    image: redis
+    volumes:
+      - redis_data:/data
+
+  mongo:
+    image: mongo
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: OPA
+
+volumes:
+  db-data:  # La définition du volume Docker
+  redis_data:
+  mongo_data:

@@ -13,6 +13,7 @@ import sqlite3
 from datetime import datetime as dt
 import numpy as np
 from dateutil.relativedelta import relativedelta
+import os
 
 
 # Paramétrage Générique
@@ -22,6 +23,7 @@ PathCreateTable = 'Binance/Dao/Create_DBSQLITE_OPA.sql'
 Host_DBMongo = 'localhost' 
 Port_DBMongo = 27017
 Nom_DBMongo  = 'OPA'
+
 
 """
 ########################################################################
@@ -37,7 +39,6 @@ def Get_Backtest(L_Paire,L_Debut,L_Fin,L_Capital,L_durée_entrainement=90, max_r
         result = Check_sql_exist(L_Paire,L_Debut,L_Fin)
         output = {}  # Dictionnaire pour stocker les résultats
         if isinstance(result, pd.DataFrame): 
-            result.to_csv("result.csv")
             print("Les données existent dans la base de données SQL. Traitement des données...")
             for Methode in ['M1', 'M2']:
                 if Methode =='M1':    
@@ -77,7 +78,7 @@ def Get_Backtest(L_Paire,L_Debut,L_Fin,L_Capital,L_durée_entrainement=90, max_r
             print("Les données n'existent pas dans la base de données SQL. Lancement du téléchargement...")
             dates_manquante,premiere_date = Check_mongo_exist(L_Paire,L_Debut,L_Fin)
             if dates_manquante:  # La liste n'est pas vide
-                DataHisto = Histo.Binance_Histo()  
+                DataHisto = Histo.Binance_Histo()   
                 first_doc=DataHisto.TelechargeFichier(dates_manquante,premiere_date)
                 first_doc="01-" + first_doc[5:] + "-" + first_doc[:4]
                 if first_doc>L_Debut: 
@@ -114,19 +115,20 @@ def Get_Backtest(L_Paire,L_Debut,L_Fin,L_Capital,L_durée_entrainement=90, max_r
 def Boucle_ML(Paire, Date_Debut,Date_Fin,L_df_histo):
 
     Date_Debut_Modifié = dt.strptime(Date_Debut, "%d-%m-%Y")  
-    Date_debut_data_train = Date_Debut_Modifié - datetime.timedelta(days=90)
-    Date_debut_data_train = Date_debut_data_train.isoformat()
-    Date_fin_data_train = Date_Debut_Modifié.isoformat()  
+    Date_debut_data_train = (Date_Debut_Modifié - datetime.timedelta(days=90)).strftime("%d-%m-%Y")
+    Date_fin_data_train = Date_Debut_Modifié.strftime("%d-%m-%Y")
+
     try:   
         # Step 1 : Phase Entrainement sur les N derniers cours
-        df_train = Get_Live_InfoPaire(Paire, Periode_Debut=Date_debut_data_train,Periode_Fin=Date_fin_data_train)
-        #Si la paire n'etait pas crée avant cette date 
+        #df_train = Get_Live_InfoPaire(Paire, Periode_Debut=Date_debut_data_train,Periode_Fin=Date_fin_data_train)
+        df_train=Check_sql_exist(Paire,Date_debut_data_train,Date_fin_data_train)
+        #Si la paire n'etait pas crée avant cette date  
         if df_train.empty:
             print("Pas de données avant cette date : modification de la date de debut")
             Date_debut_data_train = Date_fin_data_train
-            Date_fin_data_train_datetime = dt.fromisoformat(Date_fin_data_train)
+            Date_fin_data_train_datetime = dt.strptime(Date_fin_data_train, '%d-%m-%Y')
             Date_fin_data_train_datetime = Date_fin_data_train_datetime + datetime.timedelta(days=90)
-            Date_fin_data_train = Date_fin_data_train_datetime.isoformat()
+            Date_fin_data_train = Date_fin_data_train_datetime.strftime('%Y-%m-%d') # Change here
             df_train = Get_Live_InfoPaire(Paire, Periode_Debut=Date_debut_data_train,Periode_Fin=Date_fin_data_train)
             Date_Debut = dt.strptime(Date_Debut, "%d-%m-%Y")
             # Ajouter 90 jours
@@ -134,7 +136,8 @@ def Boucle_ML(Paire, Date_Debut,Date_Fin,L_df_histo):
             # Convertir l'objet date en chaîne
             Date_Debut = Date_Debut.strftime("%d-%m-%Y")
             L_df_histo=Check_sql_exist(Paire,Date_Debut,Date_Fin)
-        df_train['ClosePrice'] = df_train['ClosePrice'].astype('float')
+            print(L_df_histo.head(5))
+        df_train['VALEUR_COURS'] = df_train['VALEUR_COURS'].astype('float')
         df_train['IND_STOCH_RSI'] = util_TA.Calculer_RSI_Stochastique(df_train['ClosePrice'])
         df_train['IND_RSI'] =  util_TA.Calculer_RSI(df_train['ClosePrice'])
         df_train['IND_TRIX'] = util_TA.calculate_trix(df_train['ClosePrice'])
@@ -167,13 +170,24 @@ def Boucle_ML(Paire, Date_Debut,Date_Fin,L_df_histo):
     return df_temp
  
 def Check_sql_exist(L_Paire,L_Debut,L_Fin):
+    if not os.path.exists(PathDatabase):
+        # La base de données n'existe pas encore, alors créez-la
+        with sqlite3.connect(PathDatabase) as conn:
+            cur = conn.cursor()
+
+            # Lire le contenu du fichier SQL
+            with open(PathCreateTable, 'r') as f:
+                sql = f.read()
+
+            # Exécutez les instructions SQL pour créer la base de données
+            cur.executescript(sql)     
     L_Debut_datetime = dt.strptime(L_Debut, "%d-%m-%Y")
     L_Fin_datetime = dt.strptime(L_Fin, "%d-%m-%Y")
     L_Debut_timestamp = int(L_Debut_datetime.timestamp()) * 1000
     L_Fin_timestamp = int(L_Fin_datetime.timestamp()) * 1000
     nombre_heures = (L_Fin_datetime - L_Debut_datetime).total_seconds() / 3600
     print("Nombre d'heures entre les deux dates :", nombre_heures)
-    conn = sqlite3.connect('test.db') 
+    conn = sqlite3.connect(PathDatabase) 
     cur = conn.cursor()
     cur.execute("""
         SELECT FAIT_SIT_COURS_HIST.* 
@@ -199,11 +213,11 @@ def Check_sql_exist(L_Paire,L_Debut,L_Fin):
         return df 
     else:
         print(f"La différence entre le nombre d'heures et le nombre de résultats est supérieure à {pourcentage_acceptable}.")
-        return False
+        return pd.DataFrame()
     
 def Check_mongo_exist(L_Paire, L_Debut, L_Fin):
     try:
-        client = MongoClient('localhost', 27017)
+        client = MongoClient(Host_DBMongo, 27017)
         db = client['OPA']
         collection = db[L_Paire]
         L_Debut = dt.strptime(L_Debut, "%d-%m-%Y")
@@ -272,7 +286,7 @@ def Reset_DB_Live():
         DB_SQL.CloseConnection()
     
     except : 
-        return "KO"
+        return "KO" 
     
     return "OK"
 
@@ -281,8 +295,6 @@ def Reset_DB_Live():
 #############Bloc 2 :  Chargement Database #############################
 ########################################################################
 """
-
-# --> Base Mongo
 def Load_DB_Mongo(ListePaire : list, Periode_Debut, Periode_Fin):
     """
         Cette Fonction charge la base Mongo à partir des Fichiers Historiques
@@ -313,9 +325,193 @@ def Load_DB_Mongo(ListePaire : list, Periode_Debut, Periode_Fin):
          return "KO"
         
     return "OK"
+# --> Base Mongo
+def Load_DB_Mongo2(ListePaire : list, Periode_Debut, Periode_Fin): 
+    """
+        Cette Fonction charge la base Mongo à partir des Fichiers Historiques
+    """
+    try:
+          
+        L_Symbol = ListePaire
+
+        # Téléchargement des Fichiers à charger
+        DataHisto = Histo.Binance_Histo(L_Symbol, ['1h'], DateDebut = Periode_Debut, DateFin = Periode_Fin)
+        DataHisto.TelechargeFichier()
+        print('Téléchargement des Fichiers à charger')
+
+        #Chargement Base Mongo
+        L = list()
+    
+        for NomFichier in DataHisto.L_Fichier:
+            L.append(NomFichier['Nom'])
+            
+        DB_MB = DAO_MB.Drivers_MongoDB(L,Host = Host_DBMongo, Port = Port_DBMongo, NomDB = Nom_DBMongo)
+        DB_MB.ChargeFichiers()
+        print('Chargement Base MongoDB')
+
+        #Suppression fichiers Chargés
+        DataHisto.SupprimeFichier()
+
+    except:
+         return "KO"
+        
+    return "OK"
+def Load_DB_SQL_Histo(ListePaire : list, Periode_Debut, Periode_Fin) :
+    """
+        Cette Fonction charge la base SQLite à partir de la base Mongo
+    """
+    try:
+        L_Symbol = ListePaire
+
+        # Connection aux Bases
+        DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
+        DB_MB = DAO_MB.Drivers_MongoDB(Host = Host_DBMongo, Port = Port_DBMongo, NomDB = Nom_DBMongo)
+        DataLive = live.Binance_Live()
+
+        print('Connexion aux DataBases')
+
+        # Step 1 : Récupération des info Temps / Symbols / Cours
+        
+        # --
+        L_TEMPS = list()
+        L_SYMBOLS = list()
+        L_INFOSYMBOLS = list()
+        L_COURS= list()
+
+        # --
+        for Paire in L_Symbol:
+            Liste_Temps = list(DB_MB.DBMongo[Paire].find({}, { 'Detail.Close_time': 1}))
+            Liste_Symboles = list(DB_MB.DBMongo[Paire].find({}, {"Symbol" : 1, "Intervalle" : 1, "_id" : 0}))
+            Liste_Cours = list(DB_MB.DBMongo[Paire].find({}))
+
+            # --
+            for i in Liste_Temps :
+                for y in i['Detail']:
+                    if y['Close_time'] not in L_TEMPS:
+                        L_TEMPS.append(y['Close_time'])
+
+            # --
+            for i in Liste_Symboles:
+                a = {"NOM_SYMBOL" : i['Symbol'], "INTERVALLE" : i['Intervalle']} 
+                if a not in L_SYMBOLS:
+                    L_SYMBOLS.append(a)
+
+            # --
+            Info_symbol = DataLive.exchange_info(Paire)
+            i = {'NOM_SYMBOL' : Info_symbol['symbols'][0]['symbol'],
+                                    'BaseAsset' : Info_symbol['symbols'][0]['baseAsset'],
+                                    'QuoteAsset' : Info_symbol['symbols'][0]['quoteAsset']}
+            if i not in L_INFOSYMBOLS:
+                    L_INFOSYMBOLS.append(i)
+
+            # --
+            for doc in Liste_Cours:
+                for detail in doc['Detail']:
+                    L_COURS.append({'ID_TEMPS' :detail['Close_time'], 
+                            'NOM_SYMBOL' : doc['Symbol'], 
+                            'INTERVALLE' : doc['Intervalle'], 
+                            'VALEUR_COURS' : detail['Close'] ,
+                            'IND_QUOTEVOLUME' : detail['Quote_asset_volume'] 
+                            })
+
+        # Step 2 : Transformation des Données puis Stockage en Base
+
+        # --
+        DimTemps = pd.DataFrame(L_TEMPS, columns = ['ID_TEMPS'] , dtype='int64')
+        DimTemps['DATE_TEMPS'] =  DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp)
+        DimTemps['SECONDES'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('ss'))
+        DimTemps['MINUTES'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('mm'))
+        DimTemps['HEURE'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('HH'))
+        DimTemps['JOUR'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('DD'))
+        DimTemps['MOIS'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('MM'))
+        DimTemps['ANNEE'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('YYYY'))
+        
+        DB_SQL.Alim_DimTemps(DimTemps)
+        print('Chargement Dimension Temps')
+
+        # --
+        DimSymbol = pd.DataFrame(L_SYMBOLS)
+        df = pd.DataFrame(L_INFOSYMBOLS)
+        DimSymbol = DimSymbol.merge(df, on = 'NOM_SYMBOL' )
+        
+        DB_SQL.Alim_DimSymbol(DimSymbol)
+        print('Chargement Dimension Symbol')
+
+        # --
+        FaiCoursHisto = pd.DataFrame(L_COURS)
+        FaiCoursHisto['ID_TEMPS'] = FaiCoursHisto['ID_TEMPS'].astype('int64')
+        FaiCoursHisto['IND_QUOTEVOLUME'] = FaiCoursHisto['IND_QUOTEVOLUME'].astype(int)
+
+
+        L = list()
+        res = DB_SQL.Select('select ID_SYMBOL,NOM_SYMBOL,INTERVALLE  from DIM_SYMBOL;')
+        for i in res:
+            (a,b,c) = i
+            L.append({'ID_SYMBOL' : a, 'NOM_SYMBOL' : b, 'INTERVALLE' : c})
+        df = pd.DataFrame(L)
+
+        FaiCoursHisto = FaiCoursHisto.merge(df, how = 'inner')
+
+        FaiCoursHisto['IND_SMA_20'] = util_TA.Calculer_SMA(FaiCoursHisto['VALEUR_COURS'], 20)
+        FaiCoursHisto['IND_SMA_30'] = util_TA.Calculer_SMA(FaiCoursHisto['VALEUR_COURS'], 30)
+        FaiCoursHisto['IND_CHANGEPERCENT'] = util_TA.Calculer_Change_Percent(FaiCoursHisto['VALEUR_COURS'])
+        FaiCoursHisto['IND_STOCH_RSI'] = util_TA.Calculer_RSI_Stochastique(FaiCoursHisto['VALEUR_COURS'])
+        FaiCoursHisto['IND_RSI'] =  util_TA.Calculer_RSI(FaiCoursHisto['VALEUR_COURS'])
+        FaiCoursHisto['IND_TRIX'] = util_TA.calculate_trix(FaiCoursHisto['VALEUR_COURS'])
+
+        FaiCoursHisto = FaiCoursHisto[['ID_TEMPS',  'ID_SYMBOL','VALEUR_COURS', 'IND_SMA_20', 'IND_SMA_30', 'IND_QUOTEVOLUME', 'IND_CHANGEPERCENT', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX']]
+        
+        DB_SQL.Alim_FaitSituation_Histo(FaiCoursHisto)  
+        print('Chargement Fait Cours Historique')      
+
+        # Step 3 : Apprentissage Décision Achat / Vente Méthode 1
+        
+        # --
+        df_temp= Get_DataPaire(ListePaire, Periode_Debut, Periode_Fin, 'M1')
+        Alim_Data_M1(df_temp, 'H')
+
+        # Step 4 : Apprentissage Décision Achat / Vente Méthode 2
+        sql_cript = """
+        REPLACE INTO FAIT_DEC_ML_CLASS (ID_SIT_CRS_HIS, ID_MLCLAS, IND_DEC)
+            SELECT 
+            A.ID_SIT_CRS_HIS,
+            ID_MLCLAS,
+            CASE 
+                WHEN ID_MLCLAS = 3 AND A.VALEUR_COURS <= MIN_JR    THEN 1 /* Décision ACHAT */
+                WHEN ID_MLCLAS = 4 AND A.VALEUR_COURS >= MAX_JR    THEN 1 /* Décision VENTE */
+                ELSE 0
+            END as IND_DEC
+            FROM 
+            (
+                select 
+                ID_SIT_CRS_HIS,
+                PER_JR,
+                A.VALEUR_COURS,
+                MAX(A.VALEUR_COURS) OVER (PARTITION BY ID_SYMBOL, PER_JR) as MAX_JR,
+                MIN(A.VALEUR_COURS) OVER (PARTITION BY ID_SYMBOL, PER_JR) as MIN_JR
+                from FAIT_SIT_COURS_HIST A
+                inner join (select ID_TEMPS, 
+                ANNEE||MOIS||JOUR as PER_JR, 
+                ANNEE||strftime('%W',ANNEE||MOIS||JOUR)   as PER_SEMAINE
+                from DIM_TEMPS) B ON (A.ID_TEMPS = B.ID_TEMPS)
+            ) A
+            cross join ( select ID_MLCLAS from DIM_ML_CLAS  where ID_MLCLAS in (3,4)) B
+            EXCEPT
+            SELECT ID_SIT_CRS_HIS, ID_MLCLAS, IND_DEC  from FAIT_DEC_ML_CLASS
+        """
+        DB_SQL.Execute(sql_cript)
+        print('Chargement Decision Histo Achat Vente M2')
+
+        # Fin Connection
+        DB_SQL.CloseConnection()
+
+    except:
+        return "KO"
+    
+    return "OK"
 
 # --> Base SQL Histo
-def Load_DB_SQL_Histo(ListePaire : list) :
+def Load_DB_SQL_Histo2(ListePaire : list) :
     """
         Cette Fonction charge la base SQLite à partir de la base Mongo
     """
@@ -474,6 +670,89 @@ def apprentissage(ListePaire,Periode_Debut,Periode_Fin):
 
 
 
+# --> Base SQL Live
+def Load_DB_SQL_Live(ListePaire : list, Periode_Debut = None, Periode_Fin = datetime.date.today().isoformat()):
+    """
+    Cette fonction charge en temps réel les données Paires présentes dans la base Historique
+    """
+
+    try:
+        #Connexion
+        DataLive = live.Binance_Live()
+        DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
+        L_Symbol = ListePaire
+
+        # Step 1 : Pour chaque Paire, on alimente la base SQL Live
+        
+        # --
+        if Periode_Debut is None:
+            today = datetime.datetime.now()
+            DebutMois = str(today.year)+ "-" +str(today.month).rjust(2,'0') + "-01"        
+        else :
+            DebutMois = Periode_Debut
+        
+        # --
+        for symbol in L_Symbol:
+            # --
+            df = Get_Live_InfoPaire(symbol, Periode_Debut = DebutMois, Periode_Fin = Periode_Fin )
+            # --
+            DimTemps = pd.DataFrame(df)
+            DimTemps['ID_TEMPS'] = DimTemps['CloseTime']
+            DimTemps = pd.DataFrame(DimTemps['ID_TEMPS'])
+            DimTemps['DATE_TEMPS'] =  DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp)
+            DimTemps['SECONDES'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('ss'))
+            DimTemps['MINUTES'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('mm'))
+            DimTemps['HEURE'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('HH'))
+            DimTemps['JOUR'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('DD'))
+            DimTemps['MOIS'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('MM'))
+            DimTemps['ANNEE'] = DimTemps['ID_TEMPS'].apply(util.Convertir_Timestamp, formatDate=('YYYY'))
+            DB_SQL.Alim_DimTemps(DimTemps)
+            print('Chargement Dimension Temps')
+            # --
+            Info_symbol = DataLive.exchange_info(symbol)
+            i = {'NOM_SYMBOL' : Info_symbol['symbols'][0]['symbol'],
+                 "INTERVALLE" : df['INTERVALLE'].unique()[0],
+                 'BaseAsset' : Info_symbol['symbols'][0]['baseAsset'],
+                 'QuoteAsset' : Info_symbol['symbols'][0]['quoteAsset']
+                }
+            DimSymbol = pd.DataFrame([i])
+            DB_SQL.Alim_DimSymbol(DimSymbol)
+
+            print('Chargement Dimension Symbol')
+
+            # --
+            L = list()
+            res = DB_SQL.Select('select ID_SYMBOL,NOM_SYMBOL,INTERVALLE  from DIM_SYMBOL;')
+            for i in res:
+                (a,b,c) = i
+                L.append({'ID_SYMBOL' : a, 'NOM_SYMBOL' : b, 'INTERVALLE' : c})
+            DimSymbol = pd.DataFrame(L)
+
+            FaitCours = pd.DataFrame(df)
+            FaitCours = FaitCours.merge(DimSymbol, how = 'inner')
+ 
+            FaitCours['ID_TEMPS'] = FaitCours['CloseTime'].astype('int64')
+            FaitCours['VALEUR_COURS'] = FaitCours['ClosePrice'].astype(float)
+            FaitCours['IND_QUOTEVOLUME'] = FaitCours['QuoteAssetVolume'].astype(float)
+            FaitCours['IND_SMA_20'] = util_TA.Calculer_SMA(FaitCours['VALEUR_COURS'], 20)
+            FaitCours['IND_SMA_30'] = util_TA.Calculer_SMA(FaitCours['VALEUR_COURS'], 30)
+            FaitCours['IND_CHANGEPERCENT'] = util_TA.Calculer_Change_Percent(FaitCours['VALEUR_COURS'])
+            FaitCours['IND_STOCH_RSI'] = util_TA.Calculer_RSI_Stochastique(FaitCours['VALEUR_COURS'])
+            FaitCours['IND_RSI'] =  util_TA.Calculer_RSI(FaitCours['VALEUR_COURS'])
+            FaitCours['IND_TRIX'] = util_TA.calculate_trix(FaitCours['VALEUR_COURS'])
+
+            FaitCours = FaitCours[['ID_TEMPS',  'ID_SYMBOL','VALEUR_COURS', 'IND_SMA_20', 'IND_SMA_30', 'IND_QUOTEVOLUME', 'IND_CHANGEPERCENT', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX']]
+            
+            DB_SQL.Alim_FaitSituation(FaitCours) 
+            print('Chargement Fait Cours')
+
+        # -- 
+        DB_SQL.CloseConnection()
+
+    except Exception as e:
+        print(f"Erreur rencontrée lors de Load_DB_SQL_Live : {e}")
+        return "KO"
+    return "OK"
 
 
 
@@ -481,7 +760,7 @@ def apprentissage(ListePaire,Periode_Debut,Periode_Fin):
 
 
 # --> Base SQL Live
-def Load_DB_SQL_Live(ListePaire : list, Periode_Debut = None, Periode_Fin = datetime.date.today().isoformat()):
+def Load_DB_SQL_Live2(ListePaire : list, Periode_Debut = None, Periode_Fin = datetime.date.today().isoformat()):
     """
     Cette fonction charge en temps réel les données Paires présentes dans la base Historique
     """
@@ -666,7 +945,7 @@ def Get_DataPaire(ListePaire :list, Periode_Debut, Periode_Fin, MethodeCalcul) :
         return pd.DataFrame(columns=['ID_TEMPS', 'DATE_TEMPS', 'NOM_SYMBOL', 'VALEUR_COURS', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX','DEC_ACHAT', 'DEC_VENTE'])
     
     return df_resultat.sort_values(by='ID_TEMPS')
-
+ 
 # --> 
 def	Get_Graphe_Prediction_Achat_Vente(Data):
     """
@@ -679,8 +958,33 @@ def	Get_Graphe_Prediction_Achat_Vente(Data):
 
     return Fig
 
+def Get_Graphe_Wallet_Evolution(data):
+
+
+    try:
+        Fig = util.visualiser_wallet(data) 
+
+    except Exception as e:
+        print("Une erreur est survenue lors de l'exécution de Get_Graphe_Wallet_Evolution:")
+        print(str(e))
+        
+    return (Fig)
+
+
+
+def Get_Graphe_Good_Bad_Trade(data):
+    
+    try:
+        Fig = util.visualiser_camembert_decision(data) 
+
+    except Exception as e:
+        print("Une erreur est survenue lors de l'exécution de Get_Graphe_Good_Bad_Trade:")
+        print(str(e))
+    return (Fig)
+
+
 # -->
-def Get_SimulationGain(Data, Symbol,Capital_depart = 1000):
+def Get_SimulationGain(Data, Symbol,Capital_depart = 1000): 
     """
     Cette fonction effectue une simulation de gain sur une période donnée
     """
@@ -701,12 +1005,12 @@ def Get_SimulationGain(Data, Symbol,Capital_depart = 1000):
         Data = Data.drop(to_drop)
         if not Data.empty and Data.iloc[0]['DEC_VENTE'] == 1:
             Data = Data.drop(Data.index[0])
-        rapport = util_TA.Generation_Rapport_Backtest(Data, Symbol,Capital_depart)
+        rapport,df_wallet = util_TA.Generation_Rapport_Backtest(Data, Symbol,Capital_depart)
         
     except Exception as e:
         print("Une erreur est survenue lors de l'exécution de Get_SimulationGain:")
         print(str(e))
-    return (rapport, Data)
+    return (rapport, Data,df_wallet)
 
 # -->
 def Get_Graphe_SimulationGain(Data):
@@ -790,7 +1094,46 @@ def Get_API_Binance():
         return 'impossible de retourner la liste des paire existantes'
 
 # --> 
-def Alim_Data_M1(Data):
+def Alim_Data_M1(Data, TypeDate):
+    """
+    Cette fonction permet d'alimenter les tables Prédictions / Decision avec la méthode 1
+    """
+    
+    try:
+
+        DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
+
+        # --
+        df_temp = util_TA.boucle_trading(Data[['ID_SIT_CRS','VALEUR_COURS', 'IND_STOCH_RSI', 'IND_RSI', 'IND_TRIX']])
+        print('Lancement Fonction Boucle Trading M1')      
+        
+        # --
+        Fait_Dec_A = pd.DataFrame(df_temp['ID_SIT_CRS'])
+        Fait_Dec_A['ID_MLCLAS'] = 1
+        Fait_Dec_A['DEC_ACHAT'] = df_temp['DEC_ACHAT']
+
+        # --
+        Fait_Dec_V = pd.DataFrame(df_temp['ID_SIT_CRS'])
+        Fait_Dec_V['ID_MLCLAS'] = 2
+        Fait_Dec_V['DEC_VENTE'] = df_temp['DEC_VENTE']
+
+        if TypeDate == 'L':
+            DB_SQL.Alim_FaitPrediction(Fait_Dec_A)
+            DB_SQL.Alim_FaitPrediction(Fait_Dec_V)
+            print('Chargement Prediction Live Achat Vente M1')
+
+        elif TypeDate == 'H':
+            DB_SQL.Alim_FaitDecision_Histo(Fait_Dec_A)
+            DB_SQL.Alim_FaitDecision_Histo(Fait_Dec_V)
+            print('Chargement Desision Histo Achat Vente M1')
+
+    except Exception as e:
+        print(f"Erreur rencontrée lors de Alim_Data_M1 : {e}")
+        return "KO"
+    return "OK"
+
+
+def Alim_Data2_M1(Data):
     """
     Cette fonction permet d'alimenter les tables Prédictions / Decision avec la méthode 1
     """
@@ -862,3 +1205,244 @@ def Alim_Decision_Achat_Vente(Data,method):
     except Exception as e:
         print(f"Erreur rencontrée lors de l'alimentation des données : {e}")
         return "KO"
+    
+
+# --> Base SQL Live Prediction
+def Load_DB_SQLPrediction(Paire, MethodeCalcul, Periode_Debut = None, Periode_Fin = None, LimiteML = 50000):
+
+    def max_df(df, id_temps, decision):
+        df_2 = df[( (df['DEC_VENTE'] == 1) | (df['DEC_ACHAT'] == 1)) & ( df['ID_TEMPS'] < id_temps) ][['ID_TEMPS','DEC_ACHAT', 'DEC_VENTE']]
+        return df_2.iloc[df_2.shape[0] - 1][decision]
+
+    try:
+        DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
+
+        if MethodeCalcul == "M2":
+
+            # Step 1 : Phase Entrainement sur les N derniers cours
+            sql_train = """
+                select A.ID_SIT_CRS_HIS, 
+                    IND_STOCH_RSI,
+                    IND_RSI,
+                    IND_TRIX,
+                    B_A.IND_DEC, 
+                    B_V.IND_DEC,
+                    A.ID_TEMPS,
+                    A.VALEUR_COURS
+                from FAIT_SIT_COURS_HIST A
+                inner join FAIT_DEC_ML_CLASS B_A ON (B_A.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS and B_A.ID_MLCLAS = 3)
+                inner join FAIT_DEC_ML_CLASS B_V ON (B_V.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS and B_V.ID_MLCLAS = 4)
+                inner join DIM_TEMPS C ON (C.ID_TEMPS = A.ID_TEMPS)
+                inner join DIM_SYMBOL D ON (D.ID_SYMBOL = A.ID_SYMBOL)
+                inner join ( SELECT MIN(ID_TEMPS) as Id_TEMPS FROM FAIT_SIT_COURS A
+						inner join DIM_SYMBOL B ON (A.ID_SYMBOL = B.ID_SYMBOL) WHERE NOM_SYMBOL = '{NomSymbol}' ) E ON ( E.Id_TEMPS > A.Id_TEMPS)
+                where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null
+                AND NOM_SYMBOL = '{NomSymbol}'
+                order by A.Id_TEMPS desc
+                limit {Limite};
+            """.format(NomSymbol = Paire, 
+                       Limite = LimiteML)
+
+            resultat = DB_SQL.Select(sql_train)
+            df_train = util.Prediction_SQL_To_DF(resultat)
+            ML_Class = ML.ML_CLassification(df_train)
+            print('Entrainement sur les 6 Derniers Mois')
+
+            # Step 2 : Phase Prediction
+            
+            sql_Test = """select ID_SIT_CRS, 
+                        IND_STOCH_RSI, 
+                        IND_RSI, 
+                        IND_TRIX,
+                        NULL, 
+                        NULL,
+                        A.ID_TEMPS,
+                        A.VALEUR_COURS
+                        from FAIT_SIT_COURS A
+                        inner join DIM_SYMBOL B ON (B.ID_SYMBOL = A.ID_SYMBOL)
+                        where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null
+                        AND NOM_SYMBOL = '{NomSymbol}'
+                        order by A.Id_TEMPS desc; 
+                    """.format(NomSymbol = Paire)
+            
+            resultat = DB_SQL.Select(sql_Test)
+            df_test = util.Prediction_SQL_To_DF(resultat)
+            df_test = ML_Class.predict(df_test)
+            print('Prediction sur les données Lives')
+            
+
+            # Optimisation résultat Prediction
+            df_temp = df_test[(df_test['DEC_VENTE'] == 1) | (df_test['DEC_ACHAT'] == 1)][['ID_TEMPS','DEC_ACHAT', 'DEC_VENTE', 'ID_SIT_CRS']]
+            df_temp = df_temp.sort_values(by = 'ID_TEMPS')
+
+            for i in range(0, df_temp.shape[0]):
+                if i > 0 :
+                    #cas Décision Achat
+                    DEC_ACHAT = df_temp.iloc[i]['DEC_ACHAT']
+                    DEC_VENTE_1 = max_df(df_temp, df_temp.iloc[i]['ID_TEMPS'], 'DEC_VENTE')
+                    if (DEC_ACHAT == 1) & ( DEC_VENTE_1 == 0):
+                        df_temp.iat[i, 1] = 0
+
+                    #cas Décision Vente
+                    DEC_VENTE = df_temp.iloc[i]['DEC_VENTE']
+                    DEC_ACHAT_1 = max_df(df_temp, df_temp.iloc[i]['ID_TEMPS'], 'DEC_ACHAT')
+                    if (DEC_VENTE == 1) & ( DEC_ACHAT_1 == 0):
+                        df_temp.iat[i, 2] = 0
+
+            print('Optimisation Prediction Resultat')
+
+            # Stockage resultat Prediction
+            # --
+            Fait_Dec_A = pd.DataFrame(df_temp['ID_SIT_CRS'])
+            Fait_Dec_A['ID_MLCLAS'] = 3
+            Fait_Dec_A['DEC_ACHAT'] = df_temp['DEC_ACHAT']
+            DB_SQL.Alim_FaitPrediction(Fait_Dec_A)
+
+            # --
+            Fait_Dec_V = pd.DataFrame(df_temp['ID_SIT_CRS'])
+            Fait_Dec_V['ID_MLCLAS'] = 4
+            Fait_Dec_V['DEC_VENTE'] = df_temp['DEC_VENTE']
+            DB_SQL.Alim_FaitPrediction(Fait_Dec_V)
+
+            print('Chargement Prédiction Live Achat Vente M2')
+
+        elif MethodeCalcul == "M1":
+
+            df_test=Get_DataPaire([Paire],Periode_Debut,Periode_Fin,"M1")
+            Alim_Data_M1(df_test, 'L')
+
+        # -- 
+        DB_SQL.CloseConnection()
+
+    except Exception as e:
+        print(f"Erreur rencontrée lors de Load_DB_SQLPrediction : {e}")
+        return "KO"
+    return "OK"
+
+
+def Load_DB_SQLPrediction2(Paire, MethodeCalcul, LimiteML = 50000):
+
+    def max_df(df, id_temps, decision):
+        df_2 = df[( (df['DEC_VENTE'] == 1) | (df['DEC_ACHAT'] == 1)) & ( df['ID_TEMPS'] < id_temps) ][['ID_TEMPS','DEC_ACHAT', 'DEC_VENTE']]
+        return df_2.iloc[df_2.shape[0] - 1][decision]
+
+    try:
+        DB_SQL = DAO_SQL.Drivers_SQLite(PathDatabase)
+
+        if MethodeCalcul == "M2":
+
+            # Step 1 : Phase Entrainement sur les N derniers cours
+            sql_train = """
+                select A.ID_SIT_CRS_HIS, 
+                    IND_STOCH_RSI,
+                    IND_RSI,
+                    IND_TRIX,
+                    B_A.IND_DEC, 
+                    B_V.IND_DEC,
+                    A.ID_TEMPS,
+                    A.VALEUR_COURS
+                from FAIT_SIT_COURS_HIST A
+                inner join FAIT_DEC_ML_CLASS B_A ON (B_A.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS and B_A.ID_MLCLAS = 3)
+                inner join FAIT_DEC_ML_CLASS B_V ON (B_V.ID_SIT_CRS_HIS = A.ID_SIT_CRS_HIS and B_V.ID_MLCLAS = 4)
+                inner join DIM_TEMPS C ON (C.ID_TEMPS = A.ID_TEMPS)
+                inner join DIM_SYMBOL D ON (D.ID_SYMBOL = A.ID_SYMBOL)
+                inner join ( SELECT MIN(ID_TEMPS) as Id_TEMPS FROM FAIT_SIT_COURS A
+						inner join DIM_SYMBOL B ON (A.ID_SYMBOL = B.ID_SYMBOL) WHERE NOM_SYMBOL = '{NomSymbol}' ) E ON ( E.Id_TEMPS > A.Id_TEMPS)
+                where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null
+                AND NOM_SYMBOL = '{NomSymbol}'
+                order by A.Id_TEMPS desc
+                limit {Limite};
+            """.format(NomSymbol = Paire, 
+                       Limite = LimiteML)
+
+            resultat = DB_SQL.Select(sql_train)
+            df_train = util.Prediction_SQL_To_DF(resultat)
+            ML_Class = ML.ML_CLassification(df_train)
+            print('Entrainement sur les 6 Derniers Mois')
+
+            # Step 2 : Phase Prediction
+            
+            sql_Test = """select ID_SIT_CRS, 
+                        IND_STOCH_RSI, 
+                        IND_RSI, 
+                        IND_TRIX,
+                        NULL, 
+                        NULL,
+                        A.ID_TEMPS,
+                        A.VALEUR_COURS
+                        from FAIT_SIT_COURS A
+                        inner join DIM_SYMBOL B ON (B.ID_SYMBOL = A.ID_SYMBOL)
+                        where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null
+                        AND NOM_SYMBOL = '{NomSymbol}'
+                        order by A.Id_TEMPS desc; 
+                    """.format(NomSymbol = Paire)
+            
+            resultat = DB_SQL.Select(sql_Test)
+            df_test = util.Prediction_SQL_To_DF(resultat)
+            df_test = ML_Class.predict(df_test)
+            print('Prediction sur les données Lives')
+            
+
+            # Optimisation résultat Prediction
+            df_temp = df_test[(df_test['DEC_VENTE'] == 1) | (df_test['DEC_ACHAT'] == 1)][['ID_TEMPS','DEC_ACHAT', 'DEC_VENTE', 'ID_SIT_CRS']]
+            df_temp = df_temp.sort_values(by = 'ID_TEMPS')
+
+            for i in range(0, df_temp.shape[0]):
+                if i > 0 :
+                    #cas Décision Achat
+                    DEC_ACHAT = df_temp.iloc[i]['DEC_ACHAT']
+                    DEC_VENTE_1 = max_df(df_temp, df_temp.iloc[i]['ID_TEMPS'], 'DEC_VENTE')
+                    if (DEC_ACHAT == 1) & ( DEC_VENTE_1 == 0):
+                        df_temp.iat[i, 1] = 0
+
+                    #cas Décision Vente
+                    DEC_VENTE = df_temp.iloc[i]['DEC_VENTE']
+                    DEC_ACHAT_1 = max_df(df_temp, df_temp.iloc[i]['ID_TEMPS'], 'DEC_ACHAT')
+                    if (DEC_VENTE == 1) & ( DEC_ACHAT_1 == 0):
+                        df_temp.iat[i, 2] = 0
+
+            print('Optimisation Prediction Resultat')
+
+            # Stockage resultat Prediction
+            # --
+            Fait_Dec_A = pd.DataFrame(df_temp['ID_SIT_CRS'])
+            Fait_Dec_A['ID_MLCLAS'] = 3
+            Fait_Dec_A['DEC_ACHAT'] = df_temp['DEC_ACHAT']
+            DB_SQL.Alim_FaitPrediction(Fait_Dec_A)
+
+            # --
+            Fait_Dec_V = pd.DataFrame(df_temp['ID_SIT_CRS'])
+            Fait_Dec_V['ID_MLCLAS'] = 4
+            Fait_Dec_V['DEC_VENTE'] = df_temp['DEC_VENTE']
+            DB_SQL.Alim_FaitPrediction(Fait_Dec_V)
+
+            print('Chargement Prédiction Live Achat Vente M2')
+
+        elif MethodeCalcul == "M1":
+
+            sql_Test = """select ID_SIT_CRS, 
+                        IND_STOCH_RSI, 
+                        IND_RSI, 
+                        IND_TRIX,
+                        NULL, 
+                        NULL,
+                        A.ID_TEMPS,
+                        A.VALEUR_COURS
+                        from FAIT_SIT_COURS A
+                        inner join DIM_SYMBOL B ON (B.ID_SYMBOL = A.ID_SYMBOL)
+                        where IND_STOCH_RSI is not null and IND_RSI is not null and IND_TRIX is not null
+                        AND NOM_SYMBOL = '{NomSymbol}'
+                        order by A.Id_TEMPS desc; 
+                    """.format(NomSymbol = Paire)
+            
+            resultat = DB_SQL.Select(sql_Test)
+            df_test = util.Prediction_SQL_To_DF(resultat)
+
+            Alim_Data_M1(df_test, 'L')
+
+        # -- 
+        DB_SQL.CloseConnection()
+
+    except : 
+        return "KO"
+    return "OK"

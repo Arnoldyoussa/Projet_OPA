@@ -94,6 +94,7 @@ class Binance_Histo:
                     first_doc = dt.datetime.strptime(date_str, '%Y-%m')
                     first_doc = first_doc.strftime('%Y-%m')  # Convertir l'objet datetime en chaîne au format 'AAAA-MM'
         else:
+            
             self.L_Fichier = list()
             
             # Identification de la liste des Dates de Fichiers

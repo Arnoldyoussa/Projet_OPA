@@ -3,6 +3,8 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import plotly.express as px
+
 
 # -- 
 def Convertir_toTimestamp(DateIsoFormat):
@@ -37,25 +39,101 @@ def visualiser_graphe_Moustache(Data):
     return fig
 
 # --
+
+def visualiser_camembert_decision(df):
+
+# Compter les valeurs 'Good' et 'Bad'
+    trade_counts = df['tradeIs'].value_counts()
+
+    # Créer le dictionnaire de correspondance
+    mapping_dict = {'Good': 'trades gagnants', 'Bad': 'trades perdants'}
+
+    # Changer les noms en utilisant le dictionnaire
+    trade_counts.index = trade_counts.index.map(mapping_dict)
+
+    # Créer le diagramme circulaire
+    fig = px.pie(trade_counts, values=trade_counts.values, names=trade_counts.index, title='Pourcentage de bon et mauvais trades')
+
+    # Modifier le tooltip
+    fig.update_traces(hovertemplate='Nombre de %{label} réalisés: %{value}')
+
+    # Afficher le diagramme
+    return(fig)
+
+def visualiser_wallet(data):
+    
+    try:
+
+        data = data.reset_index()
+        data['DATE_TEMPS'] = pd.to_datetime(data['DATE_TEMPS'])
+        start_value = data['wallet'].iloc[0]
+        fig = go.Figure()
+
+        for i in range(1, len(data)):
+            if data['wallet'].iloc[i] > start_value:
+                # For wallet value greater than start value, color goes from yellow to green
+                red = max(0, int(255 * (1 - ((data['wallet'].iloc[i] - start_value) / start_value))))
+                green = 255
+            else:
+                # For wallet value less than start value, color goes from yellow to red
+                red = 255
+                green = min(255, int(255 * ((data['wallet'].iloc[i]) / start_value)))
+            blue = 0
+
+            fig.add_trace(
+                go.Scatter(
+                    x=data['DATE_TEMPS'].iloc[i-1:i+1],
+                    y=data['wallet'].iloc[i-1:i+1],
+                    mode='lines',
+                    showlegend=False,
+                    hoverinfo='x+y',
+                    line=dict(
+                        color='rgb({},{},{})'.format(red, green, blue),
+                    )
+                )
+            )
+        fig.update_layout(
+            title='Evolution du Wallet',
+            xaxis_title='Temps',
+            yaxis_title='Montant du Wallet',
+            
+            showlegend=False
+        )
+
+    except Exception as e:
+        print("Une erreur est survenue lors de l'exécution de visualiser_wallet:")
+        print(str(e))
+
+    return (fig)
+
+
+
+
 def visualiser_transactions(L_Dataframe):
-    try :
+    try:
         L_Dataframe = L_Dataframe.sort_values(by='ID_TEMPS')
 
         fig = go.Figure()
+
         # Ajout de la courbe de la colonne 'valeur_cours'
         fig.add_trace(go.Scatter(x=L_Dataframe.index, y=L_Dataframe['VALEUR_COURS'], mode='lines', name='Valeur du cours'))
+
 
         # Ajout des points verts pour les achats
         fig.add_trace(go.Scatter(x=L_Dataframe[L_Dataframe['DEC_ACHAT'] == 1].index, y=L_Dataframe[L_Dataframe['DEC_ACHAT'] == 1]['VALEUR_COURS'], mode='markers', marker=dict(color='green', symbol='circle'), name=' Decision Achat'))
 
         # Ajout des points rouges pour les ventes
         fig.add_trace(go.Scatter(x=L_Dataframe[L_Dataframe['DEC_VENTE'] == 1].index, y=L_Dataframe[L_Dataframe['DEC_VENTE'] == 1]['VALEUR_COURS'], mode='markers', marker=dict(color='red', symbol='circle'), name='Decision Vente'))
+
         # Configuration des titres et des axes
         fig.update_layout(title='Courbe de la paire par rapport au temps', xaxis_title='Temps', yaxis_title='Valeur de la paire')
+
     except Exception as e:
         print("Une erreur est survenue lors de l'exécution de visualiser_transactions:")
         print(str(e))
+
     return fig
+
 
 # --
 def affiche_graphe_score(dfTest):
@@ -69,7 +147,7 @@ def affiche_graphe_score(dfTest):
     monthly_prices = dfTest['VALEUR_COURS'].resample('M').last()
     monthly_prices.iloc[0] = dfTest['VALEUR_COURS'].iloc[0]
     bh_monthly_returns = monthly_prices.pct_change()
-    bh_monthly_returns.iloc[0] = np.NaN
+    bh_monthly_returns.iloc[0] = np.NaN 
     bh_monthly_returns = bh_monthly_returns.fillna(0) * 100
 
     # Créer le graphique à barres pour l'évolution du wallet
