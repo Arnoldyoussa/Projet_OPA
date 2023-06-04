@@ -3,9 +3,14 @@ services:
   mongo:
     image : "mongo"
     network_mode: host
+  
+  redis:
+    image : "redis"
+    network_mode: host
 
   binance:
     image : "arnoldyoussa/trading_opa:latest"
     depends_on:
       - mongo
+      - redis
     network_mode: host
