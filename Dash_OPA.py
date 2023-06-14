@@ -135,7 +135,7 @@ def Reset_DB_All(n_clicks):
 """ 
 @app.callback(
     Output('alert-auto', 'is_open'),
-    Input('load-button', 'n_clicks'),
+    Input('load-button2', 'n_clicks'),
     [
         State('Menu_LoadH', 'value'),
         State('deb_input', 'value'),
@@ -188,8 +188,8 @@ def update_time(n):
 """
 @app.callback( 
     [Output("output-store", "data"),
-     Output("Bouton_Backtest", "n_clicks")], 
-    [Input("Bouton_Backtest", "n_clicks")],
+     Output("load-button3", "n_clicks")], 
+    [Input("load-button3", "n_clicks")],
     [State("date-debut-input", "value"),
     State("date-fin-input", "value"),
     State("capital-input", "value"),

@@ -31,7 +31,16 @@ case_option = dbc.RadioItems(
 # --> Autres Blocs
 output_notification = html.Div(id="output-notification")
 output_container = html.Div(id="output-container")
-
+loading_container3 = dcc.Loading(
+    id="loading-container3",
+    type="default",  # ou "cube", "circle", dépend de vos préférences
+    children=[
+        html.Br(),
+        dbc.Row(
+            dbc.Button("Lancement du Backtest", id="load-button3", n_clicks=0)
+        )
+    ]
+)
 # --> Assemblage du layout final
 simuGain_layout = dbc.Container(
     [
@@ -43,11 +52,11 @@ simuGain_layout = dbc.Container(
             [
                 dbc.Col([html.Label("Date de début (jj-mm-aaaa) :"), dcc.Input(id="date-debut-input", type="text", placeholder="JJ-MM-AAAA", value="01-10-2017")], width=3),
                 dbc.Col([html.Label("Date de fin (jj-mm-aaaa) :"), dcc.Input(id="date-fin-input", type="text", placeholder="JJ-MM-AAAA", value="01-05-2023")], width=3),
-                dbc.Col([html.Label("Capital en dollar :"), dcc.Input(id="capital-input", type="number", placeholder="10000", value=10000)], width=3),
-                dbc.Col([dbc.Button("Lancement du Backtest", id="Bouton_Backtest", n_clicks=0)], width=3)
+                dbc.Col([html.Label("Capital en dollar :"), dcc.Input(id="capital-input", type="number", placeholder="10000", value=10000)], width=3)
             ],
             style={'padding': '10px'} 
         ),
+        loading_container3,
         dbc.Row(
             [
                 dbc.Col(dcc.Graph(id="fig_simulation"), width=6),
