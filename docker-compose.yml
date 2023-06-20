@@ -2,6 +2,8 @@ version : "3"
 services:
   mongo:
     image : "mongo"
+    volumes:
+      - mongorepo:/data/db
     network_mode: host
   
   redis:
@@ -9,8 +11,16 @@ services:
     network_mode: host
 
   binance:
-    image : "arnoldyoussa/trading_opa:latest"
+    image : registry.gitlab.com/arnoldyoussa/projet_opa:latest
+    volumes:
+      - oparepo:/app/exploit/db
+    ports:
+      - 8050:8050
     depends_on:
       - mongo
       - redis
     network_mode: host
+
+volumes:
+  mongorepo:
+  oparepo:

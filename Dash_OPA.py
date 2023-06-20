@@ -275,4 +275,4 @@ def display_page(pathname):
 
 # Exécute l'application Dash
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8053)
+    app.run_server(debug=True, port=8050)
