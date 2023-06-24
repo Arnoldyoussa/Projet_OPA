@@ -54,7 +54,18 @@ Pave_Symbol_to_Load = dbc.Container(
                ]
             ),
         html.Br(),
-        dbc.Row(dbc.Button("Chargement Historique", id="load-button", n_clicks=0)),
+    ]
+)
+
+# --> ...
+loading_container2 = dcc.Loading(
+    id="loading-container",
+    type="default",  # ou "cube", "circle", dépend de vos préférences
+    children=[
+        html.Br(),
+        dbc.Row(
+            dbc.Button("Chargement Historique", id="load-button2", n_clicks=0)
+        ),
         dbc.Alert(
             "Info : Fin Alimentation DataBase",
             id="alert-auto",
@@ -64,13 +75,19 @@ Pave_Symbol_to_Load = dbc.Container(
     ]
 )
 
+ 
+
+ 
 # --> Assemblage du layout final
 Load_layout = dbc.Container(
     [
         dbc.Row(Header),
         dbc.Row([
             dbc.Col(html.Div(Pave_Symbol_Loaded)),
-            dbc.Col(html.Div(Pave_Symbol_to_Load))
+            dbc.Col([
+                html.Div(Pave_Symbol_to_Load),
+                html.Div(loading_container2),
+            ])
         ])
     ]
 )
