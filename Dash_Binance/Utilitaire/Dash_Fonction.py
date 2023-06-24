@@ -75,6 +75,4 @@ def Get_Backtest(Paire,Periode_Debut,Periode_Fin,Capital_depart):
             "graph_good_bad_trade":L_Graph_Good_bad_trade.to_dict(),
             "graph_wallet":L_Wallet.to_dict()
         }
-
-    print("Fin du Backtest") 
     return output
