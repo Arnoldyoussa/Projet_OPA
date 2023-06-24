@@ -13,7 +13,7 @@ services:
   binance:
     image : registry.gitlab.com/arnoldyoussa/projet_opa:latest
     volumes:
-      - oparepo:/app/exploit/db
+      - oparepo:/app/db
     ports:
       - 8050:8050
     depends_on:
