@@ -5,12 +5,18 @@ from dash import dcc, html , dash_table
 # --> Entête
 Header = dbc.Container( 
     [
-        html.H1("Bienvenue sur le Projet OPA Cryptobot", className="display-4"),
-        html.H2("Analyse de performance du bot", className="display-5"),
-        html.H3(id="date_Dash_Simu"),
+        html.Img(src="assets/logo_crypto_bot.png", alt="Logo", height="100px"),
+        html.Div([
+            html.H1("Analyse de performance du bot", className="display-5", style={'marginRight': '10px', 'marginLeft': '22px'}),
+            html.Img(src="assets/bar-chart-line.svg", alt="Bar Chart Line Icon", height="30px"),
+        ], style={'display': 'flex', 'alignItems': 'center'}),
+        html.Div([
+            html.Img(src="assets/clock.svg", alt="Clock Icon", height="15px", style={'marginBottom': '8px'}),
+            html.H2(id="date_Dash_Simu", style={'display': 'inline-block', 'verticalAlign': 'middle'}),
+        ], style={'display': 'flex', 'alignItems': 'center'}),
         dcc.Store(id="graph-update-trigger", data=None)
     ],
-    className="my-4",  # Ajoute une marge autour du conteneur
+    className="my-4", 
 )
 
 

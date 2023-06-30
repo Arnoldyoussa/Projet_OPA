@@ -27,6 +27,15 @@ import datetime as dt
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.CERULEAN], suppress_callback_exceptions=True)
 
+"""
+ListeSymbol = ['ETHUSDT']
+dt_Debut = "2017-01-01"
+dt_Fin = "2018-01-01"
+
+Bot.Load_DB_Mongo(ListeSymbol, Periode_Debut=dt_Debut, Periode_Fin=dt_Fin)
+Bot.Load_DB_SQL_Histo(ListeSymbol, Periode_Debut=dt_Debut, Periode_Fin=dt_Fin)
+"""
+
 # --> Intervalle de mise à jour
 update_interval = dcc.Interval( id="interval-component", interval=30*1000, n_intervals=0 )
 
@@ -242,15 +251,25 @@ def update_graph_containerv2(selected_method, output):
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id='store_ListHistoSymbol'),
-    html.Div([
-        dcc.Link('Accueil', href='/'),
-        html.Span(" | "),
-        dcc.Link('Chargement de la Base Historique', href='/LoadDatabase'),
-        html.Span(" | "),
-        dcc.Link('Analyse de performance du bot', href='/Backtest'),
-       
-    ], style={'position': 'absolute', 'left': '0', 'top': '0', 'padding': '10px'}),
-    html.Br(),
+    dbc.NavbarSimple(
+        children=[
+            dbc.NavItem(dbc.NavLink([
+                "Accueil ",
+                html.Img(src="assets/house-check-fill.svg", alt="home", height="20px", style={'verticalAlign': 'middle', 'marginBottom': '8px'})
+            ], href="/")),
+            dbc.NavItem(dbc.NavLink([
+                "Chargement de la Base Historique ",
+                html.Img(src="assets/database-fill-gear.svg", alt="database", height="20px", style={'verticalAlign': 'middle', 'marginBottom': '8px'})
+            ], href="/LoadDatabase")),
+            dbc.NavItem(dbc.NavLink([
+                "Analyse de performance du bot ",
+                html.Img(src="assets/bar-chart-line-fill.svg", alt="chart", height="20px", style={'verticalAlign': 'middle', 'marginBottom': '8px'})
+            ], href="/Backtest")),
+        ],
+        brand_href="/",
+        color="primary",
+        dark=False,
+    ),
     html.Div(id='page-content'),
     update_interval,
 ])
@@ -271,7 +290,11 @@ def display_page(pathname):
         return Page_LoadHisto.Load_layout
 
     else:
-        return '404'
+        return dbc.Jumbotron([
+            html.H1("404: Not found", className="text-danger"),
+            html.Hr(),
+            html.P(f"The pathname {pathname} was not recognised...")
+        ])
 
 # Exécute l'application Dash
 if __name__ == '__main__':

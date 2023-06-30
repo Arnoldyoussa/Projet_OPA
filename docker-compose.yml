@@ -9,6 +9,8 @@ services:
   redis:
     image : "redis"
     network_mode: host
+    volumes:
+      - redisdata:/data
 
   binance:
     image : registry.gitlab.com/arnoldyoussa/projet_opa:latest
@@ -24,3 +26,4 @@ services:
 volumes:
   mongorepo:
   oparepo:
+  redisdata:
