@@ -239,6 +239,34 @@ def update_graph_containerv2(selected_method, output):
 #########################################################
 
 #--> Définition de la structure de l'application, qui inclut des liens pour naviguer entre les pages
+
+app.layout = html.Div([
+    dcc.Location(id='url', refresh=False),
+    dcc.Store(id='store_ListHistoSymbol'),
+    dbc.NavbarSimple(
+        children=[
+            dbc.NavItem(dbc.NavLink([
+                "Accueil ",
+                html.Img(src="assets/house-check-fill.svg", alt="home", height="20px", style={'verticalAlign': 'middle', 'marginBottom': '8px'})
+            ], href="/")),
+            dbc.NavItem(dbc.NavLink([
+                "Chargement de la Base Historique ",
+                html.Img(src="assets/database-fill-gear.svg", alt="database", height="20px", style={'verticalAlign': 'middle', 'marginBottom': '8px'})
+            ], href="/LoadDatabase")),
+            dbc.NavItem(dbc.NavLink([
+                "Analyse de performance du bot ",
+                html.Img(src="assets/bar-chart-line-fill.svg", alt="chart", height="20px", style={'verticalAlign': 'middle', 'marginBottom': '8px'})
+            ], href="/Backtest")),
+        ],
+        brand_href="/",
+        color="primary",
+        dark=False,
+    ),
+    html.Div(id='page-content'),
+    update_interval,
+])
+
+"""
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id='store_ListHistoSymbol'),
@@ -254,7 +282,7 @@ app.layout = html.Div([
     html.Div(id='page-content'),
     update_interval,
 ])
-
+"""
 
 #--> Définition du callback pour mettre à jour le contenu de la page en fonction de l'URL
 @app.callback(Output('page-content', 'children'),
@@ -271,8 +299,13 @@ def display_page(pathname):
         return Page_LoadHisto.Load_layout
 
     else:
-        return '404'
+        return dbc.Jumbotron([
+            html.H1("404: Not found", className="text-danger"),
+            html.Hr(),
+            html.P(f"The pathname {pathname} was not recognised...")
+        ])
+
 
 # Exécute l'application Dash
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8053)
+    app.run_server(debug=True, host='0.0.0.0', port=8050)

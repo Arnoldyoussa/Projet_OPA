@@ -2,15 +2,25 @@ version : "3"
 services:
   mongo:
     image : "mongo"
-    network_mode: host
+    volumes:
+      - mongorepo:/data/db
   
   redis:
     image : "redis"
-    network_mode: host
+    volumes:
+      - redisdata:/data
 
   binance:
-    image : "arnoldyoussa/trading_opa:latest"
+    build: .
+    volumes:
+      - oparepo:/app/db
+    ports:
+      - 8050:8050
     depends_on:
       - mongo
       - redis
-    network_mode: host
+
+volumes:
+  mongorepo:
+  oparepo:
+  redisdata:

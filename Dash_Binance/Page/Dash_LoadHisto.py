@@ -8,13 +8,30 @@ from Dash_Binance.Utilitaire import Dash_DAO_Redis as DAO_redis
 # --> Entête
 Header = dbc.Container( 
     [
+        html.Img(src="assets/logo_crypto_bot.png", alt="Logo", height="100px"),
+        html.Div([
+            html.H1("Chargement des Données Historiques", className="display-5", style={'marginRight': '10px', 'marginLeft': '22px'}),
+            html.Img(src="assets/database-gear.svg", alt="Database Gear Icon", height="30px"),
+        ], style={'display': 'flex', 'alignItems': 'center'}),
+        html.Div([
+            html.Img(src="assets/clock.svg", alt="Clock Icon", height="17px", style={'marginBottom': '8px'}),
+            html.H2(id="date_Dash_Idx", style={'display': 'inline-block', 'verticalAlign': 'middle'}),
+        ], style={'display': 'flex', 'alignItems': 'center'}),
+    ],
+    className="my-4", 
+)
+
+
+"""
+Header = dbc.Container( 
+    [
         html.H1("Bienvenue sur le Projet OPA Cryptobot", className="display-4"),
         html.H2("Chargement des Données Historiques", className="display-5"),
         html.H3(id="date_Dash_LoadH"),
     ],
     className="my-4",  # Ajoute une marge autour du conteneur
 )
-
+"""
 # init liste Symbol
 currency_pairs = DAO_redis.fetch_currency_pairs_redis()
 if not currency_pairs:
@@ -56,6 +73,8 @@ Pave_Symbol_to_Load = dbc.Container(
         html.Br(),
     ]
 )
+
+# --> ...
 loading_container2 = dcc.Loading(
     id="loading-container",
     type="default",  # ou "cube", "circle", dépend de vos préférences

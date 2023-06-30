@@ -9,9 +9,27 @@ import datetime as dt
 import pandas as pd
 
 import plotly.graph_objs as go
-
+ 
 
 # --> Entête
+Header = dbc.Container( 
+    [
+        html.Img(src="assets/logo_crypto_bot.png", alt="Logo", height="100px"),
+        html.Div([
+            html.H1("Cours des paires de crypto-monnaies", className="display-5", style={'marginRight': '10px', 'marginLeft': '22px'}),
+            html.Img(src="assets/graph-up.svg", alt="Graph Icon", height="30px"),
+        ], style={'display': 'flex', 'alignItems': 'center'}),
+        html.Div([
+            html.Img(src="assets/clock.svg", alt="Clock Icon", height="15px", style={'marginBottom': '5px'}),
+            html.H2(id="date_Dash_Idx", style={'display': 'inline-block', 'verticalAlign': 'middle'}),
+        ], style={'display': 'flex', 'alignItems': 'center'}),
+    ],
+    className="my-4",
+)
+
+
+
+"""
 Header = dbc.Container( 
     [
         html.H1("Bienvenue sur le Projet OPA Cryptobot", className="display-4"),
@@ -20,7 +38,7 @@ Header = dbc.Container(
     ],
     className="my-4",  # Ajoute une marge autour du conteneur
 )
-
+"""
 # --> Menu pour la sélection de la paire de cryptomonnaies
 currency_pairs = DAO_redis.fetch_currency_pairs_redis()
 

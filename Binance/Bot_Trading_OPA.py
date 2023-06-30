@@ -11,10 +11,10 @@ import sys
 import datetime
 
 # Paramétrage Générique
-PathDatabase = 'test.db'
+PathDatabase = 'db/test.db'
 PathCreateTable = 'Binance/Dao/Create_DBSQLITE_OPA.sql'
 
-Host_DBMongo = 'localhost' 
+Host_DBMongo = 'mongo' 
 Port_DBMongo = 27017
 Nom_DBMongo  = 'OPA'
 

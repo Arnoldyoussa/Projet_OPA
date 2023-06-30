@@ -5,7 +5,7 @@ import requests
 import datetime as dt
 import pandas as pd
 
-r = redis.Redis(host='localhost', port=6379, db=0)
+r = redis.Redis(host='redis', port=6379, db=0)
 
 # Récupère les données de l'API Binance et les stocke dans Redis
 def Maj_base_redis(Periode_Debut= dt.date.today().isoformat(), Periode_Fin = dt.date.today().isoformat() ):

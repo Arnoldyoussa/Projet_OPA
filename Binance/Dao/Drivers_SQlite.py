@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import pandas as pd
 
 class Drivers_SQLite:
     """
@@ -70,13 +71,15 @@ class Drivers_SQLite:
     def Alim_DimTemps(self, Data):
         res = self.Select('select ID_TEMPS from DIM_TEMPS;')
 
-        for i in res:
-            (a,) = i
-            Data = Data.drop(index = Data[Data['ID_TEMPS'] == a].index)
+        L = [{'ID_TEMPS' : i, 'VAL' : 0} for (i,) in res]
+        df = pd.DataFrame(L, columns = ['ID_TEMPS', 'VAL'], dtype='int64')
+
+        Data = Data.merge(df, on ='ID_TEMPS', how = 'left')
+        Data = Data.drop(Data[Data['VAL'] == 0].index)
+        Data = Data.drop(columns = 'VAL')
 
         self.InsertMany('INSERT INTO DIM_TEMPS VALUES (?,?, ?, ?, ?, ? ,?,?, current_date );', Data.values.tolist())
         self.Commit()
-
         return self.ClientSQLite.total_changes
     
     #--
@@ -96,9 +99,12 @@ class Drivers_SQLite:
     def Alim_FaitSituation_Histo(self, FaiCoursHisto):
         res = self.Select('select ID_TEMPS, ID_SYMBOL from FAIT_SIT_COURS_HIST;')
 
-        for i in res:
-            (a,b) = i
-            FaiCoursHisto = FaiCoursHisto.drop(index = FaiCoursHisto[(FaiCoursHisto['ID_TEMPS'] == a) & (FaiCoursHisto['ID_SYMBOL'] == b)].index)
+        L = [{'ID_TEMPS' : i, 'ID_SYMBOL' :j ,'VAL' : 0} for (i,j) in res]
+        df = pd.DataFrame(L, columns = ['ID_TEMPS', 'ID_SYMBOL', 'VAL'], dtype='int64')
+
+        FaiCoursHisto = FaiCoursHisto.merge(df, on =['ID_TEMPS','ID_SYMBOL'], how = 'left')
+        FaiCoursHisto = FaiCoursHisto.drop(FaiCoursHisto[FaiCoursHisto['VAL'] == 0].index)
+        FaiCoursHisto = FaiCoursHisto.drop(columns = 'VAL')
 
         self.InsertMany('INSERT INTO FAIT_SIT_COURS_HIST VALUES (null, ?, ?, ?, ?,?,?,?,?,?,? , current_date );', FaiCoursHisto.values.tolist())
         self.Commit()
@@ -125,9 +131,12 @@ class Drivers_SQLite:
     def Alim_FaitSituation(self, FaitCours):
         res = self.Select('select ID_TEMPS, ID_SYMBOL from FAIT_SIT_COURS;')
 
-        for i in res:
-            (a,b) = i
-            FaitCours = FaitCours.drop(index = FaitCours[(FaitCours['ID_TEMPS'] == a) & (FaitCours['ID_SYMBOL'] == b)].index)
+        L = [{'ID_TEMPS' : i, 'ID_SYMBOL' :j ,'VAL' : 0} for (i,j) in res]
+        df = pd.DataFrame(L, columns = ['ID_TEMPS', 'ID_SYMBOL', 'VAL'], dtype='int64')
+
+        FaitCours = FaitCours.merge(df, on =['ID_TEMPS','ID_SYMBOL'], how = 'left')
+        FaitCours = FaitCours.drop(FaitCours[FaitCours['VAL'] == 0].index)
+        FaitCours = FaitCours.drop(columns = 'VAL')
 
         self.InsertMany('INSERT INTO FAIT_SIT_COURS VALUES (null, ?, ?, ?, ?,?,?,?,?,?,? , current_date );', FaitCours.values.tolist())
         self.Commit()
