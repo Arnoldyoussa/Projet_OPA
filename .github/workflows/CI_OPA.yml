@@ -21,3 +21,9 @@ jobs:
         with:
           username: ${{ secrets.USERNAME_ATU }}
           password: ${{ secrets.PASSWORD_ATU }}
+      -
+        name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          tags: ${{ secrets.USERNAME_ATU }}/trading_opa:latest
