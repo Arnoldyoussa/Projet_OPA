@@ -13,7 +13,7 @@ services:
       - redisdata:/data
 
   binance:
-    image : registry.gitlab.com/arnoldyoussa/projet_opa:latest
+    image : arnoldyoussa/trading_opa:latest
     volumes:
       - oparepo:/app/db
     ports:
