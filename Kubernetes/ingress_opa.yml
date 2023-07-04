@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tradindgopa-ingress
+  namespace : projet-opa-de-202209
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: "binance-dash-opa.com"
+    http:
+      paths:
+      - path: /
+        pathType: Exact
+        backend:
+          service:
+            name: tradindgopa-service
+            port:
+              number: 8050

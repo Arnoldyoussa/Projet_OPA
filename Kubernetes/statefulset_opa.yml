@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tradindgopa-statefulset
+  namespace : projet-opa-de-202209
+  labels:
+    app: dash-opa
+spec:
+  serviceName : tradindgopa-service
+  selector:
+    matchLabels:
+      app: dash-opa
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: dash-opa
+    spec:
+      containers:
+      - name: mongo
+        image: mongo
+        volumeMounts:
+          - name: mongorepo
+            mountPath: /data/db
+        ports :
+          - containerPort : 27017
+      
+      - name: redis
+        image: redis
+        volumeMounts:
+          - name: redisrepo
+            mountPath: /data
+
+      - name: binance
+        image: arnoldyoussa/trading_opa:latest
+        volumeMounts:
+          - name: oparepo
+            mountPath: /app/db
+        ports :
+          - containerPort : 8050
+      
+      volumes:
+        - name : mongorepo
+        - name : redisrepo
+        - name : oparepo
