@@ -25,16 +25,9 @@ import datetime as dt
 ######## Initialisation de l'application Dash ###########
 #########################################################
 
+Bot.Init_DB()
 app = Dash(__name__, external_stylesheets=[dbc.themes.CERULEAN], suppress_callback_exceptions=True)
 
-"""
-ListeSymbol = ['ETHUSDT']
-dt_Debut = "2017-01-01"
-dt_Fin = "2018-01-01"
-
-Bot.Load_DB_Mongo(ListeSymbol, Periode_Debut=dt_Debut, Periode_Fin=dt_Fin)
-Bot.Load_DB_SQL_Histo(ListeSymbol, Periode_Debut=dt_Debut, Periode_Fin=dt_Fin)
-"""
 
 # --> Intervalle de mise à jour
 update_interval = dcc.Interval( id="interval-component", interval=30*1000, n_intervals=0 )
@@ -230,7 +223,7 @@ def on_button_click(n_clicks, date_debut, date_fin, capital, currency_pair):
 )
 def update_graph_containerv2(selected_method, output): 
     if output is None: 
-        raise Dash.exceptions.PreventUpdate 
+        raise PreventUpdate 
     for methode, resultats in output.items():
         if methode == selected_method:
             Table_Rapport = resultats['rapport']
@@ -240,7 +233,7 @@ def update_graph_containerv2(selected_method, output):
             fig_wallet=resultats['graph_wallet']
             return fig_prediction, fig_simulation,fig_camembert,fig_wallet, Table_Rapport
 
-    raise Dash.exceptions.PreventUpdate
+    raise PreventUpdate
 
 
 #########################################################

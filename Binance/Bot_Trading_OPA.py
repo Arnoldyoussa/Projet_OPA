@@ -65,6 +65,27 @@ def Reset_DB_Live():
     
     return "OK"
 
+#-->
+def Init_DB(ListePaire : list = ['ETHUSDT'], Periode_Debut =  "2017-10-01", Periode_Fin = "2017-11-01"):
+    """
+        Cette Fonction initialise les Bases Mongo & SQLlite avec une Liste de Paires sur une période donnée
+    """
+
+    try:
+        
+        DB_MB = DAO_MB.Drivers_MongoDB(Host = Host_DBMongo, Port = Port_DBMongo, NomDB = Nom_DBMongo)
+        ListCollection = DB_MB.get_AllCollection()
+
+        if (len(ListCollection) == 0 ):
+            Reset_DB_All()
+            Load_DB_Mongo(ListePaire, Periode_Debut=Periode_Debut, Periode_Fin=Periode_Fin)
+            Load_DB_SQL_Histo(ListePaire, Periode_Debut=Periode_Debut, Periode_Fin=Periode_Fin)
+    
+    except : 
+        return "KO"
+    
+    return "OK"
+
 """
 ########################################################################
 #############Bloc 2 :  Chargement Database #############################
